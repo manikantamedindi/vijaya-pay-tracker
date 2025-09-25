@@ -1,0 +1,143 @@
+  ▲ Next.js 14.2.16
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1753ms
+ ✓ Compiled /api/booth-people in 429ms (102 modules)
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 1031ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1907ms (784 modules)
+ GET / 200 in 2026ms
+ ✓ Compiled /_not-found in 232ms (769 modules)
+ GET /sw.js 404 in 324ms
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 561ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 15ms
+ GET /sw.js 404 in 20ms
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 331ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 21ms
+ GET /sw.js 404 in 15ms
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 1051ms
+ POST /api/booth-people 500 in 502ms
+ GET /sw.js 404 in 31ms
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 670ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 31ms
+ GET /sw.js 404 in 11ms
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 340ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 25ms
+Fetched data: { data: [], count: 0 }
+ GET /api/booth-people 200 in 361ms
+ GET /sw.js 404 in 19ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 18ms
+ GET /sw.js 404 in 14ms
+ POST /api/booth-people 500 in 472ms
+ POST /api/booth-people 500 in 333ms
+ GET /sw.js 404 in 16ms
+ GET / 200 in 42ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 28ms
+ GET /sw.js 404 in 18ms
+Supabase error: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.users' in the schema cache"
+}
+ GET /api/booth-people 500 in 639ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 11ms
+Supabase error: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.users' in the schema cache"
+}
+ GET /api/booth-people 500 in 369ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 12ms
+ GET /sw.js 404 in 23ms
+ GET /sw.js 404 in 16ms
+Supabase error: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.users' in the schema cache"
+}
+ GET /api/booth-people 500 in 886ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 14ms
+ GET /sw.js 404 in 14ms
+ GET / 200 in 13ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 37ms
+ GET /sw.js 404 in 12ms
+ ✓ Compiled in 175ms (355 modules)
+ ✓ Compiled in 120ms (355 modules)
+ ✓ Compiled in 136ms (755 modules)
+ ✓ Compiled in 94ms (355 modules)
+ ✓ Compiled in 94ms (355 modules)
+ ✓ Compiled in 77ms (755 modules)
+ GET /sw.js 404 in 70ms
+ ✓ Compiled /api/employees in 121ms (414 modules)
+Supabase error: {
+  code: '42703',
+  details: null,
+  hint: 'Perhaps you meant to reference the column "employees.updated_at".',
+  message: 'column employees.created_at does not exist'
+}
+ GET /api/employees 500 in 1395ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 80ms
+ GET /sw.js 404 in 20ms
+Supabase error: {
+  code: '42703',
+  details: null,
+  hint: 'Perhaps you meant to reference the column "employees.updated_at".',
+  message: 'column employees.created_at does not exist'
+}
+ GET /api/employees 500 in 937ms
+ ✓ Compiled in 296ms (769 modules)
+Fetched data: { data: [], count: 0 }
+ GET /api/employees 200 in 443ms
+Fetched data: {
+  data: [
+    {
+      id: 1,
+      name: 'John Doe',
+      role: 'Software Engineer',
+      inserted_at: '2025-09-25T14:46:38.877523+00:00',
+      updated_at: '2025-09-25T14:46:38.877523+00:00'
+    },
+    {
+      id: 2,
+      name: 'Jane Smith',
+      role: 'Project Manager',
+      inserted_at: '2025-09-25T14:46:38.877523+00:00',
+      updated_at: '2025-09-25T14:46:38.877523+00:00'
+    }
+  ],
+  count: 2
+}
+ GET /api/employees 200 in 866ms
+Fetched data: {
+  data: [
+    {
+      id: 1,
+      name: 'John Doe',
+      role: 'Software Engineer',
+      inserted_at: '2025-09-25T14:46:38.877523+00:00',
+      updated_at: '2025-09-25T14:46:38.877523+00:00'
+    },
+    {
+      id: 2,
+      name: 'Jane Smith',
+      role: 'Project Manager',
+      inserted_at: '2025-09-25T14:46:38.877523+00:00',
+      updated_at: '2025-09-25T14:46:38.877523+00:00'
+    }
+  ],
+  count: 2
+}
+ GET /api/employees 200 in 424ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 34ms
+ GET /sw.js 404 in 16ms
