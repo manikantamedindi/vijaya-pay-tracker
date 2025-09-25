@@ -1,37 +1,44 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { LayoutDashboard, Users } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
-interface NavbarProps {
-  currentPage: "dashboard" | "booth-people"
-  onPageChange: (page: "dashboard" | "booth-people") => void
-}
-
-export function Navbar({ currentPage, onPageChange }: NavbarProps) {
+export function Navbar() {
+  const pathname = usePathname();
+  const isDashboard = pathname === "/dashboard" || pathname === "/";
+  const isBoothPeople = pathname === "/booth-people";
+  
   return (
     <nav className="border-b bg-background">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold">Milk Factory Payment</h1>
+            <Link href="/" className="text-xl font-bold hover:underline">
+              Milk Factory Payment
+            </Link>
           </div>
 
           <div className="flex items-center space-x-2">
             <Button
-              variant={currentPage === "dashboard" ? "default" : "ghost"}
-              onClick={() => onPageChange("dashboard")}
+              variant={isDashboard ? "default" : "ghost"}
+              asChild
               className="flex items-center gap-2"
             >
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
+              <Link href="/dashboard">
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </Link>
             </Button>
             <Button
-              variant={currentPage === "booth-people" ? "default" : "ghost"}
-              onClick={() => onPageChange("booth-people")}
+              variant={isBoothPeople ? "default" : "ghost"}
+              asChild
               className="flex items-center gap-2"
             >
-              <Users className="h-4 w-4" />
-              Booth People
+              <Link href="/booth-people">
+                <Users className="h-4 w-4" />
+                Booth People
+              </Link>
             </Button>
           </div>
         </div>

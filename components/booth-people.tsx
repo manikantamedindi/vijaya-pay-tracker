@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,49 +18,90 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Edit, Trash2, UserPlus, Upload, Download } from "lucide-react"
-import { useAppDispatch, useAppSelector } from "@/lib/hooks"
-import { addBoothPerson, updateBoothPerson, deleteBoothPerson, addVPAToPerson } from "@/lib/store"
 import { useToast } from "@/hooks/use-toast"
 
 interface BoothPerson {
-  id: string
+  id: number
   name: string
   phone: string
-  address: string
-  customerVPAs: Array<{
-    id: string
-    vpa: string
-    isDefault: boolean
-    isDisabled: boolean
-    createdAt: string
-  }>
-  createdAt: string
+  vpa: string
+  email: string | null
+  booth_id: string | null
+  role: string | null
+  status: string | null
+  inserted_at: string
+  updated_at: string
+}
+
+interface ApiResponse {
+  data: BoothPerson[]
+  count: number
+  pagination: {
+    page: number
+    limit: number
+    totalPages: number
+  }
 }
 
 export function BoothPeople() {
-  const dispatch = useAppDispatch()
-  const { boothPeople } = useAppSelector((state) => state.app)
+  const [boothPeople, setBoothPeople] = useState<BoothPerson[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [editingPerson, setEditingPerson] = useState<BoothPerson | null>(null)
-  const [addingVPATo, setAddingVPATo] = useState<string | null>(null)
+  const [addingVPATo, setAddingVPATo] = useState<number | null>(null)
   const [newVPA, setNewVPA] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    address: "",
-    customerVPA: "",
+    vpa: "",
+    email: "",
+    booth_id: "",
+    role: "",
+    status: "",
   })
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const { toast } = useToast()
 
+  // Fetch booth people from API
+  const fetchBoothPeople = async (page = 1) => {
+    try {
+      setIsLoading(true)
+      const response = await fetch(`/api/booth-people?page=${page}&limit=50`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch booth people')
+      }
+      
+      const result: ApiResponse = await response.json()
+      setBoothPeople(result.data)
+      setCurrentPage(result.pagination.page)
+      setTotalPages(result.pagination.totalPages)
+    } catch (error) {
+      console.error('Error fetching booth people:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch booth people. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchBoothPeople()
+  }, [])
+
   const downloadSampleCSV = () => {
-    const csvContent = `Name,Phone,Address,Customer VPA (UPI)
-John Doe,9876543210,123 Main Street,9876543210@yestp
-Jane Smith,9876543211,456 Oak Avenue,9876543211@paytm
-Mike Johnson,9876543212,789 Pine Road,9876543212@gpay
-Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
+    const csvContent = `Name,Phone,VPA,Email,Booth ID,Role,Status
+John Doe,9876543210,johndoe@ybl.com,john@example.com,booth1,manager,active
+Jane Smith,9876543211,janesmith@ybl.com,jane@example.com,booth2,sales,inactive
+Mike Johnson,9876543212,mike@ybl.com,mike@example.com,booth3,sales,active
+Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,booth1,manager,active`
 
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = window.URL.createObjectURL(blob)
@@ -86,61 +127,31 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
     setIsUploading(true)
 
     try {
-      const text = await uploadFile.text()
-      const lines = text.split("\n").filter((line) => line.trim())
-
-      if (lines.length < 2) {
-        throw new Error("File must contain at least a header row and one data row")
+      // For bulk upload, we need to call the API endpoint
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      
+      const response = await fetch('/api/booth-people', {
+        method: 'PATCH',
+        body: formData, // This would require server-side handling of multipart form data
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to upload file')
       }
-
-      const headers = lines[0].split(",").map((h) => h.trim())
-      const expectedHeaders = ["Name", "Phone", "Address", "Customer VPA (UPI)"]
-
-      const hasValidHeaders = expectedHeaders.every((expected) =>
-        headers.some((header) => header.toLowerCase().includes(expected.toLowerCase())),
-      )
-
-      if (!hasValidHeaders) {
-        throw new Error("Invalid file format. Please use the sample CSV format.")
-      }
-
-      let successCount = 0
-      let errorCount = 0
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(",").map((v) => v.trim())
-
-        if (values.length >= 4 && values[0] && values[1] && values[3]) {
-          const newPerson = {
-            name: values[0],
-            phone: values[1],
-            address: values[2] || "",
-            customerVPAs: [
-              {
-                id: Date.now().toString() + i,
-                vpa: values[3],
-                isDefault: true,
-                isDisabled: false,
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          }
-
-          dispatch(addBoothPerson(newPerson))
-          successCount++
-        } else {
-          errorCount++
-        }
-      }
-
+      
+      const result = await response.json()
       toast({
         title: "Bulk Upload Complete",
-        description: `Successfully added ${successCount} people. ${errorCount > 0 ? `${errorCount} rows had errors.` : ""}`,
+        description: result.message || `Successfully added ${result.count || 0} people.`,
       })
 
       setIsBulkUploadOpen(false)
       setUploadFile(null)
+      fetchBoothPeople() // Refresh the data after upload
     } catch (error) {
+      console.error('Error uploading file:', error)
       toast({
         title: "Upload Error",
         description: error instanceof Error ? error.message : "Failed to process file",
@@ -151,8 +162,8 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
     }
   }
 
-  const handleAddPerson = () => {
-    if (!formData.name || !formData.phone || !formData.customerVPA) {
+  const handleAddPerson = async () => {
+    if (!formData.name || !formData.phone || !formData.vpa) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -161,29 +172,45 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
       return
     }
 
-    const newPerson = {
-      name: formData.name,
-      phone: formData.phone,
-      address: formData.address,
-      customerVPAs: [
-        {
-          id: Date.now().toString(),
-          vpa: formData.customerVPA,
-          isDefault: true,
-          isDisabled: false,
-          createdAt: new Date().toISOString(),
+    try {
+      const response = await fetch('/api/booth-people', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      ],
+        body: JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+          vpa: formData.vpa,
+          email: formData.email || null,
+          booth_id: formData.booth_id || null,
+          role: formData.role || 'booth_person',
+          status: formData.status || 'active'
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to add person')
+      }
+
+      const result = await response.json()
+      toast({
+        title: "Success",
+        description: "Booth person added successfully",
+      })
+
+      setIsAddDialogOpen(false)
+      setFormData({ name: "", phone: "", vpa: "", email: "", booth_id: "", role: "", status: "" })
+      fetchBoothPeople() // Refresh the data after adding
+    } catch (error) {
+      console.error('Error adding person:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add person",
+        variant: "destructive",
+      })
     }
-
-    dispatch(addBoothPerson(newPerson))
-    setFormData({ name: "", phone: "", address: "", customerVPA: "" })
-    setIsAddDialogOpen(false)
-
-    toast({
-      title: "Success",
-      description: "Booth person added successfully",
-    })
   }
 
   const handleEditPerson = (person: BoothPerson) => {
@@ -191,13 +218,16 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
     setFormData({
       name: person.name,
       phone: person.phone,
-      address: person.address,
-      customerVPA: person.customerVPAs.find((vpa) => vpa.isDefault)?.vpa || "",
+      vpa: person.vpa,
+      email: person.email || "",
+      booth_id: person.booth_id || "",
+      role: person.role || "",
+      status: person.status || "",
     })
   }
 
-  const handleUpdatePerson = () => {
-    if (!editingPerson || !formData.name || !formData.phone || !formData.customerVPA) {
+  const handleUpdatePerson = async () => {
+    if (!editingPerson || !formData.name || !formData.phone || !formData.vpa) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -206,35 +236,81 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
       return
     }
 
-    const updatedPerson: BoothPerson = {
-      ...editingPerson,
-      name: formData.name,
-      phone: formData.phone,
-      address: formData.address,
-      customerVPAs: editingPerson.customerVPAs.map((vpa) =>
-        vpa.isDefault ? { ...vpa, vpa: formData.customerVPA } : vpa,
-      ),
+    try {
+      const response = await fetch('/api/booth-people', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingPerson.id,
+          name: formData.name,
+          phone: formData.phone,
+          vpa: formData.vpa,
+          email: formData.email || null,
+          booth_id: formData.booth_id || null,
+          role: formData.role || 'booth_person',
+          status: formData.status || 'active'
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to update person')
+      }
+
+      const result = await response.json()
+      toast({
+        title: "Success",
+        description: "Booth person updated successfully",
+      })
+
+      setEditingPerson(null)
+      setFormData({ name: "", phone: "", vpa: "", email: "", booth_id: "", role: "", status: "" })
+      fetchBoothPeople() // Refresh the data after update
+    } catch (error) {
+      console.error('Error updating person:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update person",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeletePerson = async (personId: number) => {
+    if (!window.confirm('Are you sure you want to delete this person?')) {
+      return
     }
 
-    dispatch(updateBoothPerson(updatedPerson))
-    setEditingPerson(null)
-    setFormData({ name: "", phone: "", address: "", customerVPA: "" })
+    try {
+      const response = await fetch(`/api/booth-people?id=${personId}`, {
+        method: 'DELETE',
+      })
 
-    toast({
-      title: "Success",
-      description: "Booth person updated successfully",
-    })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to delete person')
+      }
+
+      toast({
+        title: "Success",
+        description: "Booth person deleted successfully",
+      })
+
+      fetchBoothPeople() // Refresh the data after deletion
+    } catch (error) {
+      console.error('Error deleting person:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete person",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleDeletePerson = (personId: string) => {
-    dispatch(deleteBoothPerson(personId))
-    toast({
-      title: "Success",
-      description: "Booth person deleted successfully",
-    })
-  }
-
-  const handleAddVPA = () => {
+  // Add VPA function - for the current API structure, this updates the VPA
+  const handleAddVPA = async () => {
     if (!addingVPATo || !newVPA) {
       toast({
         title: "Error",
@@ -244,14 +320,54 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
       return
     }
 
-    dispatch(addVPAToPerson({ personId: addingVPATo, vpa: newVPA }))
-    setAddingVPATo(null)
-    setNewVPA("")
+    try {
+      // Update the person's VPA
+      const response = await fetch('/api/booth-people', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: addingVPATo,
+          vpa: newVPA,
+        }),
+      })
 
-    toast({
-      title: "Success",
-      description: "New VPA added and set as default",
-    })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to update VPA')
+      }
+
+      const result = await response.json()
+      toast({
+        title: "Success",
+        description: "VPA updated successfully",
+      })
+
+      setAddingVPATo(null)
+      setNewVPA("")
+      fetchBoothPeople() // Refresh data after update
+    } catch (error) {
+      console.error('Error updating VPA:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update VPA",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Pagination controls
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      fetchBoothPeople(currentPage + 1)
+    }
+  }
+
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      fetchBoothPeople(currentPage - 1)
+    }
   }
 
   return (
@@ -285,7 +401,7 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
                     onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                   />
                   <p className="text-sm text-muted-foreground">
-                    Upload a CSV file with columns: Name, Phone, Address, Customer VPA (UPI)
+                    Upload a CSV file with columns: Name, Phone, VPA, Email, Booth ID, Role, Status
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -316,7 +432,7 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add New Booth Person</DialogTitle>
-                <DialogDescription>Add a new person with their VPA details</DialogDescription>
+                <DialogDescription>Add a new person with their details</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -338,21 +454,50 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Textarea
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Enter address"
+                  <Label htmlFor="vpa">VPA *</Label>
+                  <Input
+                    id="vpa"
+                    value={formData.vpa}
+                    onChange={(e) => setFormData({ ...formData, vpa: e.target.value })}
+                    placeholder="Enter UPI ID (e.g., name@ybl)"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="customerVPA">Customer VPA (UPI) *</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
-                    id="customerVPA"
-                    value={formData.customerVPA}
-                    onChange={(e) => setFormData({ ...formData, customerVPA: e.target.value })}
-                    placeholder="Enter UPI ID (e.g., 9876543210@yestp)"
+                    id="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="Enter email (optional)"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="booth_id">Booth ID</Label>
+                    <Input
+                      id="booth_id"
+                      value={formData.booth_id}
+                      onChange={(e) => setFormData({ ...formData, booth_id: e.target.value })}
+                      placeholder="Booth ID (optional)"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Input
+                      id="role"
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      placeholder="Role (optional)"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Input
+                    id="status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    placeholder="Status (optional)"
                   />
                 </div>
               </div>
@@ -370,61 +515,94 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
       <Card>
         <CardHeader>
           <CardTitle>All Booth People</CardTitle>
-          <CardDescription>Manage all registered booth people and their VPA details</CardDescription>
+          <CardDescription>Manage all registered booth people and their details</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Customer VPAs</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {boothPeople.map((person) => (
-                <TableRow key={person.id}>
-                  <TableCell className="font-medium">{person.name}</TableCell>
-                  <TableCell>{person.phone}</TableCell>
-                  <TableCell>{person.address}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {person.customerVPAs.map((vpa) => (
-                        <div key={vpa.id} className="flex items-center gap-2">
-                          <code className="text-sm bg-muted px-2 py-1 rounded">{vpa.vpa}</code>
-                          {vpa.isDefault && (
-                            <Badge variant="default" className="text-xs">
-                              Default
-                            </Badge>
-                          )}
-                          {vpa.isDisabled && (
-                            <Badge variant="secondary" className="text-xs">
-                              Disabled
-                            </Badge>
-                          )}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>VPA</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Booth ID</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {boothPeople.map((person) => (
+                    <TableRow key={person.id}>
+                      <TableCell className="font-medium">{person.name}</TableCell>
+                      <TableCell>{person.phone}</TableCell>
+                      <TableCell><code className="bg-muted px-2 py-1 rounded">{person.vpa}</code></TableCell>
+                      <TableCell>{person.email || '-'}</TableCell>
+                      <TableCell>{person.booth_id || '-'}</TableCell>
+                      <TableCell>{person.role || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={person.status === 'active' ? 'default' : 'secondary'}>
+                          {person.status || '-'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleEditPerson(person)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setAddingVPATo(person.id)}>
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDeletePerson(person.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditPerson(person)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setAddingVPATo(person.id)}>
-                        <UserPlus className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeletePerson(person.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              
+              {boothPeople.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No booth people found. Add one to get started.
+                </div>
+              )}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={goToPrevPage} 
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={goToNextPage} 
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -453,19 +631,45 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-address">Address</Label>
-              <Textarea
-                id="edit-address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              <Label htmlFor="edit-vpa">VPA *</Label>
+              <Input
+                id="edit-vpa"
+                value={formData.vpa}
+                onChange={(e) => setFormData({ ...formData, vpa: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-customerVPA">Customer VPA (UPI) *</Label>
+              <Label htmlFor="edit-email">Email</Label>
               <Input
-                id="edit-customerVPA"
-                value={formData.customerVPA}
-                onChange={(e) => setFormData({ ...formData, customerVPA: e.target.value })}
+                id="edit-email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-booth_id">Booth ID</Label>
+                <Input
+                  id="edit-booth_id"
+                  value={formData.booth_id}
+                  onChange={(e) => setFormData({ ...formData, booth_id: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <Input
+                  id="edit-role"
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <Input
+                id="edit-status"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               />
             </div>
           </div>
@@ -482,14 +686,14 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
       <Dialog open={!!addingVPATo} onOpenChange={() => setAddingVPATo(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New VPA</DialogTitle>
+            <DialogTitle>Update VPA</DialogTitle>
             <DialogDescription>
-              Add a new VPA for this person. The new VPA will become the default and old ones will be disabled.
+              Update the VPA for this person.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="new-vpa">New Customer VPA (UPI)</Label>
+              <Label htmlFor="new-vpa">New VPA</Label>
               <Input
                 id="new-vpa"
                 value={newVPA}
@@ -502,7 +706,7 @@ Sarah Wilson,9876543213,321 Elm Street,9876543213@phonepe`
             <Button variant="outline" onClick={() => setAddingVPATo(null)}>
               Cancel
             </Button>
-            <Button onClick={handleAddVPA}>Add VPA</Button>
+            <Button onClick={handleAddVPA}>Update VPA</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
