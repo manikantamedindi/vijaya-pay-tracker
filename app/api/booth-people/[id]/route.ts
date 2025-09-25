@@ -12,7 +12,7 @@ export async function GET(
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    // Get a specific user by ID
+    // Get a specific booth person by ID
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -43,13 +43,14 @@ export async function PUT(
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    // Update a specific user by ID
+    // Update a specific booth person by ID
     const { data, error } = await supabase
       .from('users')
       .update({
         name: body.name,
-        email: body.email,
         phone: body.phone,
+        vpa: body.vpa,
+        email: body.email,
         booth_id: body.booth_id,
         role: body.role,
         status: body.status
@@ -80,7 +81,7 @@ export async function DELETE(
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    // Delete a specific user by ID
+    // Delete a specific booth person by ID
     const { error } = await supabase
       .from('users')
       .delete()
