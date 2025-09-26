@@ -596,7 +596,9 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddPerson}>Add Person</Button>
+                <Button onClick={handleAddPerson} disabled={!formData.name || !formData.phone || !formData.customerVPAs}>
+                  Add Person
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -761,7 +763,9 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
             }}>
               Cancel
             </Button>
-            <Button onClick={handleUpdatePerson}>Update Person</Button>
+            <Button onClick={handleUpdatePerson} disabled={!editFormData.name || !editFormData.phone || !editFormData.customerVPAs}>
+              Update Person
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -790,7 +794,9 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
             <Button variant="outline" onClick={() => setAddingVPATo(null)}>
               Cancel
             </Button>
-            <Button onClick={handleAddVPA}>Update VPA</Button>
+            <Button onClick={handleAddVPA} disabled={!newVPA}>
+              Update VPA
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

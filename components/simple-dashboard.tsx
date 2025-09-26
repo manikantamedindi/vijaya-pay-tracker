@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Upload, FileText, Users, CreditCard, CheckCircle, Download, Trash2 } from "lucide-react"
+import { Upload, FileText, Users, CreditCard, CheckCircle, Download, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import { setTransactions, setUploadedFile, clearAllData, clearTransactionData, initializeStoreFromSession, setBoothPeople } from "@/lib/store"
 import { useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { VirtualizedTable } from "./virtualized-table"
 
 interface Transaction {
   sno: string
@@ -32,6 +33,17 @@ export function SimpleDashboard() {
   const [isLoading, setIsLoading] = useState(false)
   const [isFetchingBoothPeople, setIsFetchingBoothPeople] = useState(false)
   const { toast } = useToast()
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(50) // Show 50 items per page
+  const [unmatchedPage, setUnmatchedPage] = useState(1)
+  const [unmatchedPerPage] = useState(50)
+  
+  // Progress tracking
+  const [progress, setProgress] = useState(0)
+  const [progressMessage, setProgressMessage] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // Load data from session storage on component mount
   useEffect(() => {
@@ -127,7 +139,8 @@ export function SimpleDashboard() {
     })
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
     if (!file) {
       toast({
         title: "Error",
@@ -138,36 +151,143 @@ export function SimpleDashboard() {
     }
 
     setIsLoading(true)
-
+    setIsProcessing(true)
+    setProgress(0)
+    setProgressMessage('Reading file...')
+    
     const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
-      const lines = text.split("\n").filter((line) => line.trim())
-      const headers = lines[0].split(",")
-
-      const parsedTransactions: Transaction[] = lines.slice(1).map((line, index) => {
-        const values = line.split(",")
-        return {
-          sno: values[0] || (index + 1).toString(),
-          transactionDate: values[1] || "",
-          transactionAmount: Number.parseFloat(values[2]) || 0,
-          rrn: values[3] || "",
-          customerVPA: values[4] || "",
-          isMatched: false,
+    
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string
+        console.log("CSV Content preview:", text.substring(0, 500) + "...")
+        
+        // Parse CSV with better error handling and performance optimization
+        const lines = text.trim().split('\n')
+        console.log("Total lines in CSV:", lines.length)
+        
+        if (lines.length < 2) {
+          toast({
+            title: "Invalid CSV file",
+            description: "CSV file must contain at least a header and one data row",
+            variant: "destructive",
+          })
+          setIsLoading(false)
+          setIsProcessing(false)
+          return
         }
-      })
 
-      // Simulate loading delay for better UX
-      setTimeout(() => {
-        dispatch(setTransactions(parsedTransactions))
+        const headers = lines[0].split(',').map(h => h.trim())
+        console.log("CSV Headers:", headers)
+        
+        // Check if required columns exist
+        const requiredColumns = ['S.NO', 'Transaction Date', 'Transaction Amount', 'RRN', 'Customer VPA']
+        const missingColumns = requiredColumns.filter(col => !headers.includes(col))
+        
+        if (missingColumns.length > 0) {
+          toast({
+            title: "Missing required columns",
+            description: `Missing columns: ${missingColumns.join(', ')}`,
+            variant: "destructive",
+          })
+          setIsLoading(false)
+          setIsProcessing(false)
+          return
+        }
+
+        const transactions: Transaction[] = []
+        const startTime = performance.now()
+        
+        // Process transactions in batches for better performance with large files
+        const batchSize = 500
+        let processedLines = 0
+        
+        setProgressMessage('Parsing transactions...')
+        
+        // Process transactions starting from line 1 (skip header)
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim()
+          if (!line) continue // Skip empty lines
+          
+          const values = line.split(',').map(value => value.trim())
+          
+          if (values.length < headers.length) {
+            console.warn(`Skipping line ${i + 1}: insufficient columns`)
+            continue
+          }
+
+          try {
+            const transaction: Transaction = {
+              sno: values[0] || '',
+              transactionDate: values[1] || '',
+              transactionAmount: parseFloat(values[2]) || 0,
+              rrn: values[3] || '',
+              customerVPA: values[4] || '',
+              isMatched: false,
+            }
+            
+            transactions.push(transaction)
+            processedLines++
+            
+            // Update progress for large files
+            if (processedLines % batchSize === 0) {
+              const progressPercent = Math.round((processedLines / (lines.length - 1)) * 100)
+              setProgress(progressPercent)
+              setProgressMessage(`Processed ${processedLines} of ${lines.length - 1} transactions...`)
+              console.log(`Processed ${processedLines} transactions... (${progressPercent}%)`)
+            }
+          } catch (error) {
+            console.error(`Error parsing line ${i + 1}:`, error)
+            continue
+          }
+        }
+
+        const endTime = performance.now()
+        console.log(`Successfully parsed ${transactions.length} transactions in ${(endTime - startTime).toFixed(2)}ms`)
+        
+        setProgressMessage('Saving data...')
+        setProgress(95)
+        
+        // Batch dispatch for better performance
+        dispatch(setTransactions(transactions))
         dispatch(setUploadedFile(file.name))
-        setIsLoading(false)
-
+        
+        setProgress(100)
+        setProgressMessage('Complete!')
+        
         toast({
-          title: "Success",
-          description: `Uploaded ${parsedTransactions.length} transactions`,
+          title: "Success!",
+          description: `Successfully uploaded ${transactions.length} transactions`,
         })
-      }, 1500)
+        
+        // Reset progress after a delay
+        setTimeout(() => {
+          setIsProcessing(false)
+          setProgress(0)
+          setProgressMessage('')
+        }, 1000)
+        
+      } catch (error) {
+        console.error("Error parsing CSV:", error)
+        toast({
+          title: "Error parsing CSV",
+          description: "Please check the file format and try again",
+          variant: "destructive",
+        })
+        setIsProcessing(false)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    reader.onerror = () => {
+      toast({
+        title: "Error reading file",
+        description: "Please try again or select a different file",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      setIsProcessing(false)
     }
 
     reader.readAsText(file)
@@ -213,31 +333,83 @@ export function SimpleDashboard() {
 
   const handleMatch = async () => {
     setIsLoading(true)
+    setIsProcessing(true)
+    setProgress(0)
+    setProgressMessage('Preparing matching data...')
     
     try {
-      // Simulate matching process
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      console.log("=== Starting Matching Process ===")
+      console.log("Total transactions:", transactions.length)
+      console.log("Total booth people:", boothPeople.length)
       
-      // Simple matching logic - match by VPA
-      const matchedTransactions = transactions.map(transaction => {
-        const matchedPerson = boothPeople.find(person => 
-          person.customerVPAs?.some(vpa => vpa === transaction.customerVPA)
-        )
-        
-        return {
-          ...transaction,
-          isMatched: !!matchedPerson,
-          matchedPersonId: matchedPerson?.id
+      setProgressMessage('Building VPA lookup map...')
+      // Create a Map for faster lookup of booth people by VPA
+      const vpaToPersonMap = new Map<string, any>()
+      boothPeople.forEach(person => {
+        if (person.customerVPAs) {
+          vpaToPersonMap.set(person.customerVPAs, person)
         }
       })
       
-      dispatch(setTransactions(matchedTransactions))
+      console.log(`Created VPA lookup map with ${vpaToPersonMap.size} entries`)
       
-      const matchedCount = matchedTransactions.filter(t => t.isMatched).length
+      setProgressMessage('Matching transactions...')
+      // Process transactions in batches for better performance
+      const batchSize = 500
+      const updatedTransactions: Transaction[] = []
+      let processedCount = 0
+      
+      for (let i = 0; i < transactions.length; i += batchSize) {
+        const batch = transactions.slice(i, Math.min(i + batchSize, transactions.length))
+        console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(transactions.length / batchSize)}`)
+        
+        const batchResults = batch.map((transaction) => {
+          const matchedPerson = vpaToPersonMap.get(transaction.customerVPA)
+          
+          return {
+            ...transaction,
+            isMatched: !!matchedPerson,
+            matchedPersonId: matchedPerson?.id || undefined,
+          }
+        })
+        
+        updatedTransactions.push(...batchResults)
+        processedCount += batch.length
+        
+        const progressPercent = Math.round((processedCount / transactions.length) * 100)
+        setProgress(progressPercent)
+        setProgressMessage(`Matched ${processedCount} of ${transactions.length} transactions...`)
+        
+        // Allow UI to update between batches
+        if (i + batchSize < transactions.length) {
+          // Small delay to prevent UI blocking
+          await new Promise(resolve => setTimeout(resolve, 0))
+        }
+      }
+      
+      setProgressMessage('Saving results...')
+      setProgress(95)
+      
+      dispatch(setTransactions(updatedTransactions))
+      
+      const matchedCount = updatedTransactions.filter(t => t.isMatched).length
+      console.log(`Matching complete: ${matchedCount} out of ${transactions.length} matched`)
+      
+      setProgress(100)
+      setProgressMessage('Matching complete!')
+      
       toast({
         title: "Matching Complete",
         description: `Matched ${matchedCount} out of ${transactions.length} transactions`,
       })
+      
+      // Reset progress after a delay
+      setTimeout(() => {
+        setIsProcessing(false)
+        setProgress(0)
+        setProgressMessage('')
+      }, 1000)
+      
     } catch (error) {
       console.error("Error during matching:", error)
       toast({
@@ -245,6 +417,7 @@ export function SimpleDashboard() {
         description: "Failed to match transactions. Please try again.",
         variant: "destructive",
       })
+      setIsProcessing(false)
     } finally {
       setIsLoading(false)
     }
@@ -288,6 +461,23 @@ export function SimpleDashboard() {
   const matchedTransactions = transactions.filter((t) => t.isMatched)
   const unmatchedTransactions = transactions.filter((t) => !t.isMatched)
   const totalAmount = transactions.reduce((sum, t) => sum + t.transactionAmount, 0)
+
+  // Pagination helpers
+  const getPaginatedData = (data: Transaction[], page: number, perPage: number) => {
+    const startIndex = (page - 1) * perPage
+    const endIndex = startIndex + perPage
+    return data.slice(startIndex, endIndex)
+  }
+
+  const getTotalPages = (totalItems: number, perPage: number) => {
+    return Math.ceil(totalItems / perPage)
+  }
+
+  const handlePageChange = (newPage: number, totalPages: number, setPage: (page: number) => void) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -342,6 +532,26 @@ export function SimpleDashboard() {
         </Card>
       </div>
 
+      {/* Progress Indicator */}
+      {isProcessing && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{progressMessage}</span>
+                <span className="text-muted-foreground">{progress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* File Upload */}
       <div className="flex items-center gap-3">
             <Button variant="outline" onClick={downloadSampleCSV} size="sm">
@@ -378,49 +588,35 @@ export function SimpleDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Transaction Preview</CardTitle>
-                <CardDescription>Preview of uploaded transaction data</CardDescription>
+                <CardDescription>Preview of uploaded transaction data ({transactions.length} total)</CardDescription>
               </div>
-              <Button onClick={handleMatch} disabled={isLoading}>Match Transactions</Button>
-              <Button 
-                onClick={addSampleTransactions} 
-                variant="outline"
-                className="ml-2"
-              >
-                Add Sample Data
-              </Button>
-              <Button 
-                onClick={() => {
-                  console.log("=== Manual Test ===");
-                  console.log("Booth People Count:", boothPeople.length);
-                  console.log("Transactions Count:", transactions.length);
-                  console.log("Booth People Data:", boothPeople);
-                  console.log("Transactions Data:", transactions);
-                  handleMatch();
-                }} 
-                variant="outline"
-                className="ml-2"
-              >
-                Test Matching
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleMatch} disabled={isLoading}>Match Transactions</Button>
+                <Button 
+                  onClick={addSampleTransactions} 
+                  variant="outline"
+                >
+                  Add Sample Data
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">S.NO</TableHead>
-                    <TableHead className="w-24">Date</TableHead>
-                    <TableHead className="w-24">Amount</TableHead>
-                    <TableHead className="w-32">RRN</TableHead>
-                    <TableHead className="min-w-48">Customer VPA</TableHead>
-                    <TableHead className="w-24">Match Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    // Skeleton loading rows
-                    Array.from({ length: 3 }).map((_, index) => (
+            {isLoading ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">S.NO</TableHead>
+                      <TableHead className="w-24">Date</TableHead>
+                      <TableHead className="w-24">Amount</TableHead>
+                      <TableHead className="w-32">RRN</TableHead>
+                      <TableHead className="min-w-48">Customer VPA</TableHead>
+                      <TableHead className="w-24">Match Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 3 }).map((_, index) => (
                       <TableRow key={index}>
                         <TableCell><div className="h-4 w-8 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse"></div></TableCell>
@@ -429,30 +625,69 @@ export function SimpleDashboard() {
                         <TableCell><div className="h-4 w-32 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse"></div></TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    transactions.slice(0, 10).map((transaction, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{transaction.sno}</TableCell>
-                        <TableCell>{transaction.transactionDate}</TableCell>
-                        <TableCell className="font-medium">₹{transaction.transactionAmount.toLocaleString()}</TableCell>
-                        <TableCell className="font-mono text-xs">{transaction.rrn}</TableCell>
-                        <TableCell className="font-mono text-sm">{transaction.customerVPA}</TableCell>
-                        <TableCell>
-                          <Badge variant={transaction.isMatched ? "default" : "secondary"} className="text-xs">
-                            {transaction.isMatched ? "Matched" : "Unmatched"}
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <>
+                {transactions.length > 50 ? (
+                  <VirtualizedTable
+                    data={transactions}
+                    columns={[
+                      { key: 'sno', header: 'S.NO', width: 'w-16' },
+                      { key: 'transactionDate', header: 'Date', width: 'w-24' },
+                      { key: 'transactionAmount', header: 'Amount', width: 'w-24', render: (value) => `₹${Number(value).toLocaleString()}` },
+                      { key: 'rrn', header: 'RRN', width: 'w-32' },
+                      { key: 'customerVPA', header: 'Customer VPA', width: 'min-w-48' },
+                      { 
+                        key: 'isMatched', 
+                        header: 'Status', 
+                        width: 'w-24',
+                        render: (value) => (
+                          <Badge variant={value ? "default" : "secondary"} className="text-xs">
+                            {value ? "Matched" : "Unmatched"}
                           </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            {transactions.length > 10 && (
-              <p className="text-xs text-muted-foreground mt-3">
-                Showing first 10 of {transactions.length} transactions
-              </p>
+                        )
+                      }
+                    ]}
+                    rowHeight={48}
+                    visibleRows={15}
+                    className="border rounded-md"
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">S.NO</TableHead>
+                          <TableHead className="w-24">Date</TableHead>
+                          <TableHead className="w-24">Amount</TableHead>
+                          <TableHead className="w-32">RRN</TableHead>
+                          <TableHead className="min-w-48">Customer VPA</TableHead>
+                          <TableHead className="w-24">Match Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions.map((transaction, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{transaction.sno}</TableCell>
+                            <TableCell>{transaction.transactionDate}</TableCell>
+                            <TableCell className="font-medium">₹{transaction.transactionAmount.toLocaleString()}</TableCell>
+                            <TableCell className="font-mono text-xs">{transaction.rrn}</TableCell>
+                            <TableCell className="font-mono text-sm">{transaction.customerVPA}</TableCell>
+                        <TableCell>
+                              <Badge variant={transaction.isMatched ? "default" : "secondary"} className="text-xs">
+                                {transaction.isMatched ? "Matched" : "Unmatched"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -468,42 +703,65 @@ export function SimpleDashboard() {
                 <CardDescription>{unmatchedTransactions.length} transactions could not be matched</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => {/* Previous page logic */}} disabled={true}>
-                  Previous
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePageChange(unmatchedPage - 1, getTotalPages(unmatchedTransactions.length, unmatchedPerPage), setUnmatchedPage)}
+                  disabled={unmatchedPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {/* Next page logic */}} disabled={true}>
-                  Next
+                <span className="text-sm text-muted-foreground">
+                  Page {unmatchedPage} of {getTotalPages(unmatchedTransactions.length, unmatchedPerPage)}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePageChange(unmatchedPage + 1, getTotalPages(unmatchedTransactions.length, unmatchedPerPage), setUnmatchedPage)}
+                  disabled={unmatchedPage === getTotalPages(unmatchedTransactions.length, unmatchedPerPage)}
+                >
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto max-h-96">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-24">Date</TableHead>
-                    <TableHead className="w-24">Amount</TableHead>
-                    <TableHead className="min-w-48">Customer VPA</TableHead>
-                    <TableHead className="w-32">RRN</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {unmatchedTransactions.slice(0, 20).map((transaction, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{transaction.transactionDate}</TableCell>
-                      <TableCell className="font-medium">₹{transaction.transactionAmount.toLocaleString()}</TableCell>
-                      <TableCell className="font-mono text-sm">{transaction.customerVPA}</TableCell>
-                      <TableCell className="font-mono text-xs">{transaction.rrn}</TableCell>
+            {unmatchedTransactions.length > 50 ? (
+              <VirtualizedTable
+                data={unmatchedTransactions}
+                columns={[
+                  { key: 'transactionDate', header: 'Date', width: 'w-24' },
+                  { key: 'transactionAmount', header: 'Amount', width: 'w-24', render: (value) => `₹${Number(value).toLocaleString()}` },
+                  { key: 'customerVPA', header: 'Customer VPA', width: 'min-w-48' },
+                  { key: 'rrn', header: 'RRN', width: 'w-32' }
+                ]}
+                rowHeight={48}
+                visibleRows={15}
+                className="border rounded-md"
+              />
+            ) : (
+              <div className="overflow-x-auto max-h-96">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-24">Date</TableHead>
+                      <TableHead className="w-24">Amount</TableHead>
+                      <TableHead className="min-w-48">Customer VPA</TableHead>
+                      <TableHead className="w-32">RRN</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {unmatchedTransactions.length > 20 && (
-              <p className="text-xs text-muted-foreground mt-3">
-                Showing first 20 of {unmatchedTransactions.length} unmatched transactions
-              </p>
+                  </TableHeader>
+                  <TableBody>
+                    {getPaginatedData(unmatchedTransactions, unmatchedPage, unmatchedPerPage).map((transaction, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{transaction.transactionDate}</TableCell>
+                        <TableCell className="font-medium">₹{transaction.transactionAmount.toLocaleString()}</TableCell>
+                        <TableCell className="font-mono text-sm">{transaction.customerVPA}</TableCell>
+                        <TableCell className="font-mono text-xs">{transaction.rrn}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

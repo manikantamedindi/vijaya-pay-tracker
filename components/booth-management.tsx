@@ -216,7 +216,9 @@ export function BoothManagement() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddBooth}>Add Member</Button>
+              <Button onClick={handleAddBooth} disabled={!formData.name || !formData.phoneNumber || !formData.dailyAmount}>
+                Add Member
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -312,7 +314,9 @@ export function BoothManagement() {
             <Button variant="outline" onClick={() => setEditingBooth(null)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateBooth}>Update Member</Button>
+            <Button onClick={handleUpdateBooth} disabled={!formData.name || !formData.phoneNumber || !formData.dailyAmount}>
+              Update Member
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
