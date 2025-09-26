@@ -104,11 +104,9 @@ const appSlice = createSlice({
       return initialState
     },
     clearTransactionData: (state) => {
-      console.log("clearTransactionData reducer called")
       state.transactions = []
       state.uploadedFile = null
       saveStateToStorage(state)
-      console.log("clearTransactionData reducer completed")
     },
   },
 })
@@ -140,6 +138,17 @@ const saveStateToStorage = (state: AppState) => {
     }
   }
 }
+
+// Create a safe action creator that handles potential HMR issues
+const createSafeAction = (actionCreator: any) => {
+  return (...args: any[]) => {
+    if (typeof actionCreator === 'function') {
+      return actionCreator(...args);
+    }
+    console.warn('Action creator is not available, possibly due to HMR issues');
+    return { type: 'UNKNOWN_ACTION' };
+  };
+};
 
 export const {
   setBoothPeople,

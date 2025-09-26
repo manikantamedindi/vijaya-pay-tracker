@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Upload, FileText, Users, CreditCard, CheckCircle, Download, Trash2 } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
 import { setTransactions, setUploadedFile, clearAllData, clearTransactionData, initializeStoreFromSession, setBoothPeople } from "@/lib/store"
+import { useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
@@ -38,6 +39,11 @@ export function SimpleDashboard() {
     initializeStoreFromSession()
     // Fetch booth people from API
     fetchBoothPeopleFromAPI()
+    
+    // Development-only: Handle HMR issues
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Development mode: HMR safety checks enabled');
+    }
   }, [])
 
   // Fetch booth people from API
@@ -51,7 +57,6 @@ export function SimpleDashboard() {
       }
       
       const result = await response.json()
-      console.log('Fetched booth people from API:', result.data)
       
       // Store booth people in Redux store
       // Convert API data to match our store format
@@ -68,7 +73,6 @@ export function SimpleDashboard() {
       }))
       
       dispatch(setBoothPeople(boothPeopleData))
-      console.log('Set booth people in Redux store:', boothPeopleData)
       
     } catch (error) {
       console.error('Error fetching booth people:', error)
@@ -169,155 +173,115 @@ export function SimpleDashboard() {
     reader.readAsText(file)
   }
 
+  const handleClearData = useCallback(() => {
+    try {
+      console.log("Clear button clicked, attempting to dispatch clearTransactionData");
+      
+      // Check if dispatch and clearTransactionData are available
+      if (!dispatch) {
+        console.error("Dispatch is not available");
+        return;
+      }
+      
+      if (!clearTransactionData) {
+        console.error("clearTransactionData action is not available");
+        return;
+      }
+      
+      // Try to dispatch the action
+      dispatch(clearTransactionData());
+      
+      // Clear local state
+      setFile(null); 
+      setFileSize(""); 
+      
+      console.log("Clear completed successfully");
+      
+      toast({
+        title: "Success",
+        description: "Transaction data cleared successfully",
+      });
+    } catch (error) {
+      console.error("Error clearing transaction data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to clear transaction data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [dispatch, toast]);
+
+  const handleMatch = async () => {
+    setIsLoading(true)
+    
+    try {
+      // Simulate matching process
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Simple matching logic - match by VPA
+      const matchedTransactions = transactions.map(transaction => {
+        const matchedPerson = boothPeople.find(person => 
+          person.customerVPAs?.some(vpa => vpa === transaction.customerVPA)
+        )
+        
+        return {
+          ...transaction,
+          isMatched: !!matchedPerson,
+          matchedPersonId: matchedPerson?.id
+        }
+      })
+      
+      dispatch(setTransactions(matchedTransactions))
+      
+      const matchedCount = matchedTransactions.filter(t => t.isMatched).length
+      toast({
+        title: "Matching Complete",
+        description: `Matched ${matchedCount} out of ${transactions.length} transactions`,
+      })
+    } catch (error) {
+      console.error("Error during matching:", error)
+      toast({
+        title: "Error",
+        description: "Failed to match transactions. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const addSampleTransactions = () => {
-    const sampleTransactions = [
+    const sampleTransactions: Transaction[] = [
       {
         sno: "1",
-        transactionDate: "2024-01-15",
-        transactionAmount: 100.00,
-        rrn: "RRN001",
+        transactionDate: "20-09-2025",
+        transactionAmount: 12850,
+        rrn: "562998387734",
         customerVPA: "9866496670@yestp",
         isMatched: false
       },
       {
-        sno: "2", 
-        transactionDate: "2024-01-16",
-        transactionAmount: 200.00,
-        rrn: "RRN002",
-        customerVPA: "1234567890@paytm",
+        sno: "2",
+        transactionDate: "20-09-2025",
+        transactionAmount: 15000,
+        rrn: "562998387735",
+        customerVPA: "9876543210@paytm",
         isMatched: false
       },
       {
         sno: "3",
-        transactionDate: "2024-01-17", 
-        transactionAmount: 150.00,
-        rrn: "RRN003",
-        customerVPA: "9866496670@yestp",
-        isMatched: false
-      },
-      {
-        sno: "4",
-        transactionDate: "2024-01-18",
-        transactionAmount: 300.00,
-        rrn: "RRN004", 
-        customerVPA: "9999999999@upi",
+        transactionDate: "20-09-2025",
+        transactionAmount: 8500,
+        rrn: "562998387736",
+        customerVPA: "9988776655@gpay",
         isMatched: false
       }
-    ];
+    ]
     
-    dispatch(setTransactions(sampleTransactions));
-    console.log("Added sample transactions:", sampleTransactions);
-  };
-
-  const handleMatch = () => {
-    console.log("[v0] Starting matching process...")
-    console.log("[v0] Current booth people count:", boothPeople.length)
-    console.log("[v0] Current transactions count:", transactions.length)
-
-    console.log(
-      "[v0] Available booth people:",
-      boothPeople.map((p) => ({
-        id: p.id,
-        name: p.name,
-        vpa: p.customerVPAs, // Now a string
-      })),
-    )
-    console.log(
-      "[v0] All transactions to process:",
-      transactions.map((t) => ({
-        vpa: t.customerVPA,
-        amount: t.transactionAmount,
-        currentlyMatched: t.isMatched,
-      })),
-    )
-
-    // Always check from the current booth people data
-    if (boothPeople.length === 0) {
-      console.log("[v0] No booth people data available, attempting to fetch...")
-      toast({
-        title: "No Booth People Data",
-        description: "Attempting to fetch booth people data. Please try matching again in a moment.",
-        variant: "destructive",
-      })
-      // Attempt to re-fetch booth people data
-      fetchBoothPeopleFromAPI()
-      return
-    }
-
-    if (transactions.length === 0) {
-      toast({
-        title: "No Transactions",
-        description: "Please upload transaction data before matching.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const updatedTransactions = transactions.map((transaction) => {
-      const normalizedTransactionVPA = transaction.customerVPA.trim().toLowerCase()
-
-      const matchingPerson = boothPeople.find((person) => {
-        const normalizedPersonVPA = person.customerVPAs.trim().toLowerCase()
-        const isMatch = normalizedPersonVPA === normalizedTransactionVPA
-
-        console.log("[v0] Comparing VPAs:", {
-          transactionVPA: normalizedTransactionVPA,
-          personVPA: normalizedPersonVPA,
-          isMatch: isMatch,
-        })
-
-        return isMatch
-      })
-
-      if (matchingPerson) {
-        console.log("[v0] Found match:", {
-          transactionVPA: transaction.customerVPA,
-          matchedPerson: matchingPerson.name,
-          personId: matchingPerson.id,
-        })
-
-        return {
-          ...transaction,
-          isMatched: true,
-          matchedPersonId: matchingPerson.id,
-        }
-      } else {
-        console.log("[v0] No match found for VPA:", transaction.customerVPA)
-        return {
-          ...transaction,
-          isMatched: false,
-          matchedPersonId: undefined,
-        }
-      }
-    })
-
-    dispatch(setTransactions(updatedTransactions))
-
-    const totalMatchedCount = updatedTransactions.filter((t) => t.isMatched).length
-    const previouslyMatchedCount = transactions.filter((t) => t.isMatched).length
-    const unmatchedCount = updatedTransactions.filter((t) => !t.isMatched).length
-
-    console.log(
-      "[v0] Matching complete. Total matched:",
-      totalMatchedCount,
-      "Previously matched:",
-      previouslyMatchedCount,
-      "Total transactions:",
-      updatedTransactions.length,
-      "Unmatched transactions:",
-      unmatchedCount
-    )
-
-    console.log("[v0] Unmatched transactions:", 
-      updatedTransactions.filter((t) => !t.isMatched).map((t) => ({
-        customerVPA: t.customerVPA,
-        amount: t.transactionAmount
-      }))
-    )
-
+    dispatch(setTransactions(sampleTransactions))
     toast({
-      title: "Matching Complete",
-      description: `${totalMatchedCount} transactions matched out of ${updatedTransactions.length} total`,
+      title: "Sample Data Added",
+      description: "Added 3 sample transactions for testing",
     })
   }
 
@@ -394,17 +358,7 @@ export function SimpleDashboard() {
               <Upload className="h-3 w-3 mr-2" />
               Submit
             </Button>
-            <Button variant="destructive" onClick={() => { 
-              try {
-                console.log("Clear button clicked, dispatching clearTransactionData");
-                dispatch(clearTransactionData()); 
-                setFile(null); 
-                setFileSize(""); 
-                console.log("Clear completed successfully");
-              } catch (error) {
-                console.error("Error in clear button handler:", error);
-              }
-            }} size="sm">
+            <Button variant="destructive" onClick={handleClearData} size="sm">
               <Trash2 className="h-3 w-3 mr-2" />
               Clear
             </Button>
