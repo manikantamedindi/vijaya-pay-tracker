@@ -85,18 +85,31 @@ const appSlice = createSlice({
       const loadedState = loadStateFromStorage()
       return loadedState
     },
+    clearAllData: (state) => {
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.removeItem("booth-payment-app-state")
+        } catch (error) {
+          console.error("Error clearing sessionStorage:", error)
+        }
+      }
+      return initialState
+    },
   },
 })
 
 const loadStateFromStorage = (): AppState => {
   if (typeof window !== "undefined") {
     try {
-      const savedState = localStorage.getItem("booth-payment-app-state")
+      const savedState = sessionStorage.getItem("booth-payment-app-state")
       if (savedState) {
+        console.log("Loaded state from sessionStorage:", savedState)
         return JSON.parse(savedState)
+      } else {
+        console.log("No saved state found in sessionStorage")
       }
     } catch (error) {
-      console.error("Error loading state from localStorage:", error)
+      console.error("Error loading state from sessionStorage:", error)
     }
   }
   return initialState
@@ -105,9 +118,10 @@ const loadStateFromStorage = (): AppState => {
 const saveStateToStorage = (state: AppState) => {
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem("booth-payment-app-state", JSON.stringify(state))
+      sessionStorage.setItem("booth-payment-app-state", JSON.stringify(state))
+      console.log("Saved state to sessionStorage:", JSON.stringify(state))
     } catch (error) {
-      console.error("Error saving state to localStorage:", error)
+      console.error("Error saving state to sessionStorage:", error)
     }
   }
 }
@@ -121,13 +135,27 @@ export const {
   setUploadedFile,
   matchTransaction,
   loadStateFromStorage: loadStateFromStorageAction,
+  clearAllData,
 } = appSlice.actions
 
 export const store = configureStore({
   reducer: {
     app: appSlice.reducer,
   },
+  preloadedState: { app: initialState },
 })
+
+// Load saved state on the client side after store creation
+export const initializeStoreFromSession = () => {
+  if (typeof window !== "undefined") {
+    const savedState = loadStateFromStorage()
+    console.log("Loading saved state from session storage:", savedState)
+    if (savedState !== initialState) {
+      store.dispatch(loadStateFromStorageAction())
+      console.log("State loaded from session storage")
+    }
+  }
+}
 
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
