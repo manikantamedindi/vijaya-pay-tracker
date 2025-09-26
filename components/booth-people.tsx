@@ -287,7 +287,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         body: JSON.stringify({
           name: formData.name,
           phone: formData.phone,
-          customerVPAs: formData.customerVPAs,
+          vpa: formData.customerVPAs,
           email: formData.email || null,
           status: formData.status || 'Active'
         }),
@@ -305,7 +305,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       })
 
       setIsAddDialogOpen(false)
-      setFormData({ name: "", phone: "", vpa: "", email: "", status: "" })
+      setFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
       fetchBoothPeople() // Refresh the data after adding
     } catch (error) {
       console.error('Error adding person:', error)
@@ -348,7 +348,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           id: editingPerson.id,
           name: editFormData.name,
           phone: editFormData.phone,
-          customerVPAs: editFormData.customerVPAs,
+          vpa: editFormData.customerVPAs,
           email: editFormData.email || null,
           status: editFormData.status || 'Active'
         }),
@@ -366,7 +366,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       })
 
       setEditingPerson(null)
-      setEditFormData({ name: "", phone: "", vpa: "", email: "", status: "" })
+      setEditFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
       fetchBoothPeople() // Refresh the data after update
     } catch (error) {
       console.error('Error updating person:', error)

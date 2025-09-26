@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Add search functionality
     if (search) {
-      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,vpa.ilike.%${search}%`);
+      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,customerVPAs.ilike.%${search}%`);
     }
 
     const { data, error, count } = await query
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Validate each record
-        if (!person.name || !person.phone || !person.vpa) {
+        if (!person.name || !person.phone || !person.customerVPAs) {
           throw new Error(`Row ${index + 2}: Name, phone, and VPA are required`);
         }
 
@@ -107,14 +107,14 @@ export async function POST(request: NextRequest) {
 
         // Validate VPA format
         const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
-        if (!vpaRegex.test(person.vpa)) {
+        if (!vpaRegex.test(person.customerVPAs)) {
           throw new Error(`Row ${index + 2}: VPA must be in format like username@bank`);
         }
 
         return {
         name: person.name.trim(),
         phone: person.phone.trim(),
-        vpa: person.vpa.trim(),
+        customerVPAs: person.customerVPAs.trim(),
         email: person.email?.trim() || null,
         status: person.status?.trim() || 'Active'
       };
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
       .insert([{
         name: body.name.trim(),
         phone: body.phone.trim(),
-        vpa: body.vpa.trim(),
+        customerVPAs: body.vpa.trim(),
         email: body.email?.trim() || null,
         status: body.status?.trim() || 'Active'
       }])
@@ -260,7 +260,7 @@ export async function PUT(request: NextRequest) {
         const updateData: any = { id: person.id };
         if (person.name !== undefined) updateData.name = person.name.trim();
         if (person.phone !== undefined) updateData.phone = person.phone.trim();
-        if (person.vpa !== undefined) updateData.vpa = person.vpa.trim();
+        if (person.vpa !== undefined) updateData.customerVPAs = person.vpa.trim();
         if (person.email !== undefined) updateData.email = person.email?.trim() || null;
         if (person.status !== undefined) updateData.status = person.status?.trim() || 'Active';
 
@@ -324,7 +324,7 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {};
     if (body.name !== undefined) updateData.name = body.name.trim();
     if (body.phone !== undefined) updateData.phone = body.phone.trim();
-    if (body.vpa !== undefined) updateData.vpa = body.vpa.trim();
+    if (body.vpa !== undefined) updateData.customerVPAs = body.vpa.trim();
     if (body.email !== undefined) updateData.email = body.email?.trim() || null;
     if (body.status !== undefined) updateData.status = body.status?.trim() || null;
 
