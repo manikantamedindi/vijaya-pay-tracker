@@ -5,8 +5,8 @@ import * as React from 'react'
 
 import type { ToastActionElement, ToastProps } from '@/components/ui/toast'
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_LIMIT = 3
+const TOAST_REMOVE_DELAY = 5000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -74,6 +74,7 @@ const addToRemoveQueue = (toastId: string) => {
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case 'ADD_TOAST':
+      console.log(`Reducer: Adding toast ${action.toast.id}, title: ${action.toast.title}, current toasts: ${state.toasts.length}`)
       return {
         ...state,
         toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
@@ -148,6 +149,8 @@ function toast({ ...props }: Toast) {
       toast: { ...props, id },
     })
   const dismiss = () => dispatch({ type: 'DISMISS_TOAST', toastId: id })
+
+  console.log(`Creating toast with id: ${id}, title: ${props.title}, variant: ${props.variant}`)
 
   dispatch({
     type: 'ADD_TOAST',
