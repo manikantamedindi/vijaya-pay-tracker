@@ -2,12 +2,16 @@ import { configureStore, createSlice, type PayloadAction } from "@reduxjs/toolki
 
 // Types
 interface BoothPerson {
-  id: string
+  id: string | number
   name: string
   phone: string
-  address: string
+  address?: string // Make address optional since API doesn't return it
   customerVPAs: string // Single VPA string, not an array
-  createdAt: string
+  email?: string | null
+  status?: string | null
+  createdAt?: string
+  inserted_at?: string
+  updated_at?: string
 }
 
 interface Transaction {
@@ -37,6 +41,10 @@ const appSlice = createSlice({
   name: "app",
   initialState: initialState,
   reducers: {
+    setBoothPeople: (state, action: PayloadAction<BoothPerson[]>) => {
+      state.boothPeople = action.payload
+      saveStateToStorage(state)
+    },
     addBoothPerson: (state, action: PayloadAction<Omit<BoothPerson, "id" | "createdAt">>) => {
       const newPerson: BoothPerson = {
         ...action.payload,
@@ -127,6 +135,7 @@ const saveStateToStorage = (state: AppState) => {
 }
 
 export const {
+  setBoothPeople,
   addBoothPerson,
   updateBoothPerson,
   deleteBoothPerson,

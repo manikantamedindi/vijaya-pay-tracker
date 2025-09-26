@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Upload, FileText, Users, CreditCard, CheckCircle, Download, Trash2 } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
-import { setTransactions, setUploadedFile, clearAllData, initializeStoreFromSession } from "@/lib/store"
+import { setTransactions, setUploadedFile, clearAllData, initializeStoreFromSession, setBoothPeople } from "@/lib/store"
 import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
@@ -29,13 +29,58 @@ export function SimpleDashboard() {
   const [file, setFile] = useState<File | null>(null)
   const [fileSize, setFileSize] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetchingBoothPeople, setIsFetchingBoothPeople] = useState(false)
   const { toast } = useToast()
 
   // Load data from session storage on component mount
   useEffect(() => {
     // Initialize store from session storage on client side
     initializeStoreFromSession()
+    // Fetch booth people from API
+    fetchBoothPeopleFromAPI()
   }, [])
+
+  // Fetch booth people from API
+  const fetchBoothPeopleFromAPI = async () => {
+    try {
+      setIsFetchingBoothPeople(true)
+      const response = await fetch('/api/booth-people?page=1&limit=1000') // Fetch all booth people
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch booth people')
+      }
+      
+      const result = await response.json()
+      console.log('Fetched booth people from API:', result.data)
+      
+      // Store booth people in Redux store
+      // Convert API data to match our store format
+      const boothPeopleData = result.data.map((person: any) => ({
+        id: person.id,
+        name: person.name,
+        phone: person.phone,
+        customerVPAs: person.customerVPAs,
+        email: person.email,
+        status: person.status,
+        createdAt: person.inserted_at,
+        inserted_at: person.inserted_at,
+        updated_at: person.updated_at
+      }))
+      
+      dispatch(setBoothPeople(boothPeopleData))
+      console.log('Set booth people in Redux store:', boothPeopleData)
+      
+    } catch (error) {
+      console.error('Error fetching booth people:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch booth people for matching. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFetchingBoothPeople(false)
+    }
+  }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -124,8 +169,50 @@ export function SimpleDashboard() {
     reader.readAsText(file)
   }
 
+  const addSampleTransactions = () => {
+    const sampleTransactions = [
+      {
+        sno: "1",
+        transactionDate: "2024-01-15",
+        transactionAmount: 100.00,
+        rrn: "RRN001",
+        customerVPA: "9866496670@yestp",
+        isMatched: false
+      },
+      {
+        sno: "2", 
+        transactionDate: "2024-01-16",
+        transactionAmount: 200.00,
+        rrn: "RRN002",
+        customerVPA: "1234567890@paytm",
+        isMatched: false
+      },
+      {
+        sno: "3",
+        transactionDate: "2024-01-17", 
+        transactionAmount: 150.00,
+        rrn: "RRN003",
+        customerVPA: "9866496670@yestp",
+        isMatched: false
+      },
+      {
+        sno: "4",
+        transactionDate: "2024-01-18",
+        transactionAmount: 300.00,
+        rrn: "RRN004", 
+        customerVPA: "9999999999@upi",
+        isMatched: false
+      }
+    ];
+    
+    dispatch(setTransactions(sampleTransactions));
+    console.log("Added sample transactions:", sampleTransactions);
+  };
+
   const handleMatch = () => {
     console.log("[v0] Starting matching process...")
+    console.log("[v0] Current booth people count:", boothPeople.length)
+    console.log("[v0] Current transactions count:", transactions.length)
 
     console.log(
       "[v0] Available booth people:",
@@ -143,6 +230,16 @@ export function SimpleDashboard() {
         currentlyMatched: t.isMatched,
       })),
     )
+
+    // Always check from the current booth people data
+    if (boothPeople.length === 0) {
+      toast({
+        title: "No Booth People Data",
+        description: "Please ensure booth people data is loaded before matching.",
+        variant: "destructive",
+      })
+      return
+    }
 
     const updatedTransactions = transactions.map((transaction) => {
       const normalizedTransactionVPA = transaction.customerVPA.trim().toLowerCase()
@@ -186,6 +283,7 @@ export function SimpleDashboard() {
 
     const totalMatchedCount = updatedTransactions.filter((t) => t.isMatched).length
     const previouslyMatchedCount = transactions.filter((t) => t.isMatched).length
+    const unmatchedCount = updatedTransactions.filter((t) => !t.isMatched).length
 
     console.log(
       "[v0] Matching complete. Total matched:",
@@ -194,6 +292,15 @@ export function SimpleDashboard() {
       previouslyMatchedCount,
       "Total transactions:",
       updatedTransactions.length,
+      "Unmatched transactions:",
+      unmatchedCount
+    )
+
+    console.log("[v0] Unmatched transactions:", 
+      updatedTransactions.filter((t) => !t.isMatched).map((t) => ({
+        customerVPA: t.customerVPA,
+        amount: t.transactionAmount
+      }))
     )
 
     toast({
@@ -298,6 +405,27 @@ export function SimpleDashboard() {
                 <CardDescription>Preview of uploaded transaction data</CardDescription>
               </div>
               <Button onClick={handleMatch} disabled={isLoading}>Match Transactions</Button>
+              <Button 
+                onClick={addSampleTransactions} 
+                variant="outline"
+                className="ml-2"
+              >
+                Add Sample Data
+              </Button>
+              <Button 
+                onClick={() => {
+                  console.log("=== Manual Test ===");
+                  console.log("Booth People Count:", boothPeople.length);
+                  console.log("Transactions Count:", transactions.length);
+                  console.log("Booth People Data:", boothPeople);
+                  console.log("Transactions Data:", transactions);
+                  handleMatch();
+                }} 
+                variant="outline"
+                className="ml-2"
+              >
+                Test Matching
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
