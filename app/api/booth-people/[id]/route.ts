@@ -12,12 +12,12 @@ export async function GET(
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    // Get a specific booth person by ID
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
+    // Fetch a specific booth person
+  const { data, error } = await supabase
+    .from('booth_people')
+    .select('*')
+    .eq('id', id)
+    .single();
 
     if (error) {
       console.error('Supabase error fetching user:', error);

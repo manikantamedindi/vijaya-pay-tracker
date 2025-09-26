@@ -31,16 +31,20 @@ To use the users API, you need to create the following table in your Supabase da
 
 ```sql
 CREATE TABLE users (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE,
-  phone VARCHAR(20),
+  phone VARCHAR(20) NOT NULL,
+  vpa VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
   booth_id VARCHAR(100),
-  role VARCHAR(50) DEFAULT 'user',
+  role VARCHAR(50) DEFAULT 'booth_person',
   status VARCHAR(50) DEFAULT 'active',
-  created_at TIMESTAMP DEFAULT NOW(),
+  inserted_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add unique constraint on phone and vpa combination
+ALTER TABLE users ADD CONSTRAINT unique_phone_vpa UNIQUE (phone, vpa);
 ```
 
 Alternatively, you can use the Table Editor:
@@ -48,14 +52,15 @@ Alternatively, you can use the Table Editor:
 2. Click "New Table"
 3. Name it "users"
 4. Add the following columns:
-   - id: UUID, Primary Key, Default: gen_random_uuid()
+   - id: SERIAL, Primary Key
    - name: TEXT, Not Null
-   - email: TEXT, Unique
-   - phone: TEXT
+   - phone: TEXT, Not Null
+   - vpa: TEXT, Not Null
+   - email: TEXT
    - booth_id: TEXT
-   - role: TEXT, Default: 'user'
+   - role: TEXT, Default: 'booth_person'
    - status: TEXT, Default: 'active'
-   - created_at: TIMESTAMP, Default: NOW()
+   - inserted_at: TIMESTAMP, Default: NOW()
    - updated_at: TIMESTAMP, Default: NOW()
 
 ### API Endpoints
