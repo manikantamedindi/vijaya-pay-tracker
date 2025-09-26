@@ -6,13 +6,7 @@ interface BoothPerson {
   name: string
   phone: string
   address: string
-  customerVPAs: Array<{
-    id: string
-    vpa: string
-    isDefault: boolean
-    isDisabled: boolean
-    createdAt: string
-  }>
+  customerVPAs: string // Single VPA string, not an array
   createdAt: string
 }
 
@@ -66,19 +60,8 @@ const appSlice = createSlice({
     addVPAToPerson: (state, action: PayloadAction<{ personId: string; vpa: string }>) => {
       const person = state.boothPeople.find((p) => p.id === action.payload.personId)
       if (person) {
-        // Disable all existing VPAs
-        person.customerVPAs.forEach((vpa) => {
-          vpa.isDefault = false
-          vpa.isDisabled = true
-        })
-        // Add new VPA as default
-        person.customerVPAs.push({
-          id: Date.now().toString(),
-          vpa: action.payload.vpa,
-          isDefault: true,
-          isDisabled: false,
-          createdAt: new Date().toISOString(),
-        })
+        // Simply replace the VPA string
+        person.customerVPAs = action.payload.vpa
         saveStateToStorage(state)
       }
     },

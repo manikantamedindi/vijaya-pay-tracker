@@ -31,8 +31,9 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Fetched booth people:', { data, count });
+    
     return Response.json({ 
-      data, 
+      data: data, 
       count,
       pagination: {
         page,
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
       }
 
       return Response.json({ 
-        data, 
+        data: data, 
         message: `Successfully uploaded ${data?.length || 0} booth people records`,
         count: data?.length || 0
       }, { status: 200 });
@@ -201,7 +202,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: error.message }, { status: 500 });
     }
 
-    return Response.json({ data, message: 'Booth person created successfully' }, { status: 201 });
+    return Response.json({ data: data, message: 'Booth person created successfully' }, { status: 201 });
   } catch (error) {
     console.error('Error in request:', error);
     return Response.json({ 
@@ -286,7 +287,7 @@ export async function PUT(request: NextRequest) {
       }
 
       return Response.json({ 
-        data, 
+        data: data, 
         message: `Successfully updated ${data?.length || 0} booth people records`,
         count: data?.length || 0
       }, { status: 200 });
@@ -378,7 +379,7 @@ export async function PUT(request: NextRequest) {
       return Response.json({ error: 'Booth person not found or no changes made' }, { status: 404 });
     }
 
-    return Response.json({ data, message: 'Booth person updated successfully' }, { status: 200 });
+    return Response.json({ data: data, message: 'Booth person updated successfully' }, { status: 200 });
   } catch (error) {
     console.error('Error updating booth person:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });

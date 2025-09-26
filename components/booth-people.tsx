@@ -31,7 +31,7 @@ interface BoothPerson {
   id: number
   name: string
   phone: string
-  vpa: string
+  customerVPAs: string
   email: string | null
   status: string | null
   inserted_at: string
@@ -61,14 +61,14 @@ export function BoothPeople() {
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    vpa: "",
+    customerVPAs: "",
     email: "",
     status: "",
   })
   const [editFormData, setEditFormData] = useState({
     name: "",
     phone: "",
-    vpa: "",
+    customerVPAs: "",
     email: "",
     status: "",
   })
@@ -107,7 +107,7 @@ export function BoothPeople() {
   }, [])
 
   const downloadSampleCSV = () => {
-    const csvContent = `Name,Phone,VPA,Email,Status
+    const csvContent = `Name,Phone,CustomerVPAs,Email,Status
 John Doe,9876543210,johndoe@ybl.com,john@example.com,Active
 Jane Smith,9876543211,janesmith@ybl.com,jane@example.com,Active
 Mike Johnson,9876543212,mike@ybl.com,mike@example.com,Active
@@ -178,7 +178,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
       
       // Validate required headers
-      const requiredHeaders = ['name', 'phone', 'vpa']
+      const requiredHeaders = ['name', 'phone', 'customerVPAs']
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h))
       
       if (missingHeaders.length > 0) {
@@ -197,8 +197,8 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         })
 
         // Validate required fields
-        if (!record.name || !record.phone || !record.vpa) {
-          throw new Error(`Row ${index + 2}: Missing required fields (name, phone, vpa)`)
+        if (!record.name || !record.phone || !record.customerVPAs) {
+          throw new Error(`Row ${index + 2}: Missing required fields (name, phone, customerVPAs)`)
         }
 
         // Validate phone format
@@ -209,14 +209,14 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
 
         // Validate VPA format
         const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/
-        if (!vpaRegex.test(record.vpa)) {
+        if (!vpaRegex.test(record.customerVPAs)) {
           throw new Error(`Row ${index + 2}: Invalid VPA format. Must be like username@bank`)
         }
 
         return {
           name: record.name,
           phone: record.phone,
-          vpa: record.vpa,
+          customerVPAs: record.customerVPAs,
           email: record.email || null,
           status: record.status || 'Active'
         }
@@ -227,9 +227,9 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       
       // Convert the parsed data back to CSV format for the API
       const csvContent = [
-        'name,phone,vpa,email,status', // headers
+        'name,phone,customerVPAs,email,status', // headers
         ...boothPeople.map(person => 
-          `${person.name},${person.phone},${person.vpa},${person.email || ''},${person.status}`
+          `${person.name},${person.phone},${person.customerVPAs},${person.email || ''},${person.status}`
         )
       ].join('\n')
       
@@ -269,7 +269,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
   }
 
   const handleAddPerson = async () => {
-    if (!formData.name || !formData.phone || !formData.vpa) {
+    if (!formData.name || !formData.phone || !formData.customerVPAs) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -287,7 +287,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         body: JSON.stringify({
           name: formData.name,
           phone: formData.phone,
-          vpa: formData.vpa,
+          customerVPAs: formData.customerVPAs,
           email: formData.email || null,
           status: formData.status || 'Active'
         }),
@@ -322,14 +322,14 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
     setEditFormData({
       name: person.name,
       phone: person.phone,
-      vpa: person.vpa,
+      customerVPAs: person.customerVPAs,
       email: person.email || "",
       status: person.status || "",
     })
   }
 
   const handleUpdatePerson = async () => {
-    if (!editingPerson || !editFormData.name || !editFormData.phone || !editFormData.vpa) {
+    if (!editingPerson || !editFormData.name || !editFormData.phone || !editFormData.customerVPAs) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -348,7 +348,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           id: editingPerson.id,
           name: editFormData.name,
           phone: editFormData.phone,
-          vpa: editFormData.vpa,
+          customerVPAs: editFormData.customerVPAs,
           email: editFormData.email || null,
           status: editFormData.status || 'Active'
         }),
@@ -501,7 +501,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                     onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                   />
                   <p className="text-sm text-muted-foreground">
-                    Upload a CSV file with columns: Name, Phone, VPA, Email, Status
+                    Upload a CSV file with columns: Name, Phone, CustomerVPAs, Email, Status
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -525,7 +525,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
             setIsAddDialogOpen(open)
             if (open) {
-              setFormData({ name: "", phone: "", vpa: "", email: "", status: "Active" })
+              setFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "Active" })
             }
           }}>
             <DialogTrigger asChild>
@@ -559,11 +559,11 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="vpa">VPA *</Label>
+                  <Label htmlFor="customerVPAs">Customer VPA *</Label>
                   <Input
-                    id="vpa"
-                    value={formData.vpa}
-                    onChange={(e) => setFormData({ ...formData, vpa: e.target.value })}
+                    id="customerVPAs"
+                    value={formData.customerVPAs}
+                    onChange={(e) => setFormData({ ...formData, customerVPAs: e.target.value })}
                     placeholder="Enter UPI ID (e.g., name@ybl)"
                   />
                 </div>
@@ -617,21 +617,21 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
             <>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>VPA</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Customer VPA</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {boothPeople.map((person) => (
                     <TableRow key={person.id}>
                       <TableCell className="font-medium">{person.name}</TableCell>
                       <TableCell>{person.phone}</TableCell>
-                      <TableCell><code className="bg-muted px-2 py-1 rounded">{person.vpa}</code></TableCell>
+                      <TableCell><code className="bg-muted px-2 py-1 rounded">{person.customerVPAs}</code></TableCell>
                       <TableCell>{person.email || '-'}</TableCell>
                       <TableCell>
                         <Badge variant={person.status === 'Active' ? 'default' : 'secondary'}>
@@ -697,7 +697,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       <Dialog open={!!editingPerson} onOpenChange={(open) => {
         if (!open) {
           setEditingPerson(null)
-          setEditFormData({ name: "", phone: "", vpa: "", email: "", status: "" })
+          setEditFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
         }
       }}>
         <DialogContent>
@@ -723,11 +723,11 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-vpa">VPA *</Label>
+              <Label htmlFor="edit-customerVPAs">Customer VPA *</Label>
               <Input
-                id="edit-vpa"
-                value={editFormData.vpa}
-                onChange={(e) => setEditFormData({ ...editFormData, vpa: e.target.value })}
+                id="edit-customerVPAs"
+                value={editFormData.customerVPAs}
+                onChange={(e) => setEditFormData({ ...editFormData, customerVPAs: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -757,7 +757,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setEditingPerson(null)
-              setEditFormData({ name: "", phone: "", vpa: "", email: "", status: "" })
+              setEditFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
             }}>
               Cancel
             </Button>

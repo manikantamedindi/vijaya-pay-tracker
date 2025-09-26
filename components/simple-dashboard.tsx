@@ -111,7 +111,7 @@ export function SimpleDashboard() {
       boothPeople.map((p) => ({
         id: p.id,
         name: p.name,
-        vpas: p.customerVPAs.filter((vpa) => !vpa.isDisabled).map((vpa) => vpa.vpa),
+        vpa: p.customerVPAs, // Now a string
       })),
     )
     console.log(
@@ -126,21 +126,18 @@ export function SimpleDashboard() {
     const updatedTransactions = transactions.map((transaction) => {
       const normalizedTransactionVPA = transaction.customerVPA.trim().toLowerCase()
 
-      const matchingPerson = boothPeople.find((person) =>
-        person.customerVPAs.some((vpa) => {
-          const normalizedPersonVPA = vpa.vpa.trim().toLowerCase()
-          const isMatch = normalizedPersonVPA === normalizedTransactionVPA && !vpa.isDisabled
+      const matchingPerson = boothPeople.find((person) => {
+        const normalizedPersonVPA = person.customerVPAs.trim().toLowerCase()
+        const isMatch = normalizedPersonVPA === normalizedTransactionVPA
 
-          console.log("[v0] Comparing VPAs:", {
-            transactionVPA: normalizedTransactionVPA,
-            personVPA: normalizedPersonVPA,
-            isDisabled: vpa.isDisabled,
-            isMatch: isMatch,
-          })
+        console.log("[v0] Comparing VPAs:", {
+          transactionVPA: normalizedTransactionVPA,
+          personVPA: normalizedPersonVPA,
+          isMatch: isMatch,
+        })
 
-          return isMatch
-        }),
-      )
+        return isMatch
+      })
 
       if (matchingPerson) {
         console.log("[v0] Found match:", {
