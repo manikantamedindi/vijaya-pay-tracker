@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Upload, FileText, Users, CreditCard, CheckCircle, Download, Trash2 } from "lucide-react"
 import { useAppDispatch, useAppSelector } from "@/lib/hooks"
-import { setTransactions, setUploadedFile, clearAllData, initializeStoreFromSession, setBoothPeople } from "@/lib/store"
+import { setTransactions, setUploadedFile, clearAllData, clearTransactionData, initializeStoreFromSession, setBoothPeople } from "@/lib/store"
 import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
@@ -233,9 +233,21 @@ export function SimpleDashboard() {
 
     // Always check from the current booth people data
     if (boothPeople.length === 0) {
+      console.log("[v0] No booth people data available, attempting to fetch...")
       toast({
         title: "No Booth People Data",
-        description: "Please ensure booth people data is loaded before matching.",
+        description: "Attempting to fetch booth people data. Please try matching again in a moment.",
+        variant: "destructive",
+      })
+      // Attempt to re-fetch booth people data
+      fetchBoothPeopleFromAPI()
+      return
+    }
+
+    if (transactions.length === 0) {
+      toast({
+        title: "No Transactions",
+        description: "Please upload transaction data before matching.",
         variant: "destructive",
       })
       return
@@ -382,7 +394,17 @@ export function SimpleDashboard() {
               <Upload className="h-3 w-3 mr-2" />
               Submit
             </Button>
-            <Button variant="destructive" onClick={() => { dispatch(clearAllData()); setFile(null); setFileSize(""); }} size="sm">
+            <Button variant="destructive" onClick={() => { 
+              try {
+                console.log("Clear button clicked, dispatching clearTransactionData");
+                dispatch(clearTransactionData()); 
+                setFile(null); 
+                setFileSize(""); 
+                console.log("Clear completed successfully");
+              } catch (error) {
+                console.error("Error in clear button handler:", error);
+              }
+            }} size="sm">
               <Trash2 className="h-3 w-3 mr-2" />
               Clear
             </Button>

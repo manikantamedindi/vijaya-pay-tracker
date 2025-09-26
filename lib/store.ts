@@ -103,6 +103,13 @@ const appSlice = createSlice({
       }
       return initialState
     },
+    clearTransactionData: (state) => {
+      console.log("clearTransactionData reducer called")
+      state.transactions = []
+      state.uploadedFile = null
+      saveStateToStorage(state)
+      console.log("clearTransactionData reducer completed")
+    },
   },
 })
 
@@ -145,6 +152,7 @@ export const {
   matchTransaction,
   loadStateFromStorage: loadStateFromStorageAction,
   clearAllData,
+  clearTransactionData,
 } = appSlice.actions
 
 export const store = configureStore({
