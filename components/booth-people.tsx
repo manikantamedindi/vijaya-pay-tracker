@@ -17,6 +17,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Plus, Edit, Trash2, UserPlus, Upload, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -215,12 +222,24 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         }
       })
 
+      // Create FormData for file upload
+      const formData = new FormData()
+      
+      // Convert the parsed data back to CSV format for the API
+      const csvContent = [
+        'name,phone,vpa,email,status', // headers
+        ...boothPeople.map(person => 
+          `${person.name},${person.phone},${person.vpa},${person.email || ''},${person.status}`
+        )
+      ].join('\n')
+      
+      // Create a Blob from the CSV content
+      const csvBlob = new Blob([csvContent], { type: 'text/csv' })
+      formData.append('file', csvBlob, 'bulk_upload.csv')
+      
       const response = await fetch('/api/booth-people', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ boothPeople }),
+        method: 'POST',
+        body: formData,
       })
       
       if (!response.ok) {
@@ -365,7 +384,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
     }
 
     try {
-      const response = await fetch(`/api/booth-people/${personId}`, {
+      const response = await fetch(`/api/booth-people?id=${personId}`, {
         method: 'DELETE',
       })
 
@@ -506,7 +525,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
             setIsAddDialogOpen(open)
             if (open) {
-              setFormData({ name: "", phone: "", vpa: "", email: "", status: "" })
+              setFormData({ name: "", phone: "", vpa: "", email: "", status: "Active" })
             }
           }}>
             <DialogTrigger asChild>
@@ -559,12 +578,18 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="status">Status</Label>
-                  <Input
-                    id="status"
+                  <Select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    placeholder="Status (optional)"
-                  />
+                    onValueChange={(value) => setFormData({ ...formData, status: value })}
+                  >
+                    <SelectTrigger id="status">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
@@ -715,11 +740,18 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-status">Status</Label>
-              <Input
-                id="edit-status"
+              <Select
                 value={editFormData.status}
-                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
-              />
+                onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
+              >
+                <SelectTrigger id="edit-status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

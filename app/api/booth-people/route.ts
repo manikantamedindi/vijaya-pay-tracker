@@ -126,13 +126,10 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Use upsert for bulk operations (insert or update)
+      // Use simple insert for bulk operations (no upsert due to missing unique constraints)
       const { data, error } = await supabase
         .from('booth_people')
-        .upsert(boothPeople, { 
-          onConflict: 'phone,vpa',
-          ignoreDuplicates: false 
-        })
+        .insert(boothPeople)
         .select();
 
       if (error) {
