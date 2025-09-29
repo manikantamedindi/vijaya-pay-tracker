@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Edit, Trash2, UserPlus, Upload, Download } from "lucide-react"
+import { Plus, Edit, Trash2, UserPlus, Upload, Download, Search, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface BoothPerson {
@@ -72,15 +72,29 @@ export function BoothPeople() {
     email: "",
     status: "",
   })
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filteredData, setFilteredData] = useState<BoothPerson[]>([])
   const { toast } = useToast()
 
-  // Fetch booth people from API
-  const fetchBoothPeople = async (page = 1) => {
+  // Filter data based on search query
+  const filterData = (data: BoothPerson[], query: string) => {
+    if (!query.trim()) return data
+    
+    const searchTerm = query.toLowerCase()
+    return data.filter(person => 
+      person.name.toLowerCase().includes(searchTerm) ||
+      person.phone.toLowerCase().includes(searchTerm) ||
+      person.customerVPAs.toLowerCase().includes(searchTerm) ||
+      (person.email && person.email.toLowerCase().includes(searchTerm)) ||
+      (person.status && person.status.toLowerCase().includes(searchTerm))
+    )
+  }
+
+  // Fetch booth people from API - always fetch all records
+  const fetchBoothPeople = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/booth-people?page=${page}&limit=50`)
+      const response = await fetch(`/api/booth-people?limit=all`)
       
       if (!response.ok) {
         throw new Error('Failed to fetch booth people')
@@ -88,8 +102,6 @@ export function BoothPeople() {
       
       const result: ApiResponse = await response.json()
       setBoothPeople(result.data)
-      setCurrentPage(result.pagination.page)
-      setTotalPages(result.pagination.totalPages)
     } catch (error) {
       console.error('Error fetching booth people:', error)
       toast({
@@ -105,6 +117,12 @@ export function BoothPeople() {
   useEffect(() => {
     fetchBoothPeople()
   }, [])
+
+  // Apply filtering when data or search query changes
+  useEffect(() => {
+    const filtered = filterData(boothPeople, searchQuery)
+    setFilteredData(filtered)
+  }, [boothPeople, searchQuery])
 
   const downloadSampleCSV = () => {
     const csvContent = `Name,Phone,CustomerVPAs,Email,Status
@@ -124,6 +142,8 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
     window.URL.revokeObjectURL(url)
   }
 
+  const [csvPreview, setCsvPreview] = useState<any[]>([])
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -134,11 +154,27 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         const lines = text.split('\n').filter(line => line.trim());
         
         if (lines.length >= 2) {
-          const headers = lines[0].split(',').map(h => h.trim());
+          const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+          
+          // Map common header variations to standard names
+          const headerMapping: { [key: string]: string } = {
+            'name': 'name',
+            'phone': 'phone',
+            'customerVPAs': 'customerVPAs',
+            'customer_vpas': 'customerVPAs',
+            'vpa': 'customerVPAs',
+            'vpas': 'customerVPAs',
+            'email': 'email',
+            'status': 'status'
+          };
+          
+          // Normalize headers using the mapping
+          const normalizedHeaders = headers.map(header => headerMapping[header] || header);
+          
           const previewData = lines.slice(1, 6).map(line => {
             const values = line.split(',').map(v => v.trim());
             const row: any = {};
-            headers.forEach((header, i) => {
+            normalizedHeaders.forEach((header, i) => {
               row[header] = values[i] || '';
             });
             return row;
@@ -177,9 +213,28 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
 
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
       
+      // Map common header variations to standard names
+      const headerMapping: { [key: string]: string } = {
+        'name': 'name',
+        'phone': 'phone',
+        'customerVPAs': 'customerVPAs',
+        'customervpas': 'customerVPAs', // lowercase version
+        'customer_vpas': 'customerVPAs',
+        'vpa': 'customerVPAs',
+        'vpas': 'customerVPAs',
+        'email': 'email',
+        'status': 'status',
+        // Additional variations for robustness
+        'vpa': 'customerVPAs',
+        'vpas': 'customerVPAs'
+      };
+      
+      // Normalize headers using the mapping
+      const normalizedHeaders = headers.map(header => headerMapping[header] || header);
+      
       // Validate required headers
       const requiredHeaders = ['name', 'phone', 'customerVPAs']
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h))
+      const missingHeaders = requiredHeaders.filter(h => !normalizedHeaders.includes(h))
       
       if (missingHeaders.length > 0) {
         throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`)
@@ -190,7 +245,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         const values = line.split(',').map(v => v.trim())
         const record: any = {}
         
-        headers.forEach((header, i) => {
+        normalizedHeaders.forEach((header, i) => {
           if (values[i] && values[i] !== '') {
             record[header] = values[i]
           }
@@ -460,14 +515,21 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
   // Pagination controls
   const goToNextPage = () => {
     if (currentPage < totalPages) {
-      fetchBoothPeople(currentPage + 1)
+      fetchBoothPeople(currentPage + 1, showAll)
     }
   }
 
   const goToPrevPage = () => {
     if (currentPage > 1) {
-      fetchBoothPeople(currentPage - 1)
+      fetchBoothPeople(currentPage - 1, showAll)
     }
+  }
+
+  const toggleShowAll = () => {
+    const newShowAll = !showAll
+    setShowAll(newShowAll)
+    setCurrentPage(1) // Reset to first page
+    fetchBoothPeople(1, newShowAll)
   }
 
   return (
@@ -498,7 +560,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                     id="bulk-file"
                     type="file"
                     accept=".csv,.txt"
-                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    onChange={handleFileSelect}
                   />
                   <p className="text-sm text-muted-foreground">
                     Upload a CSV file with columns: Name, Phone, CustomerVPAs, Email, Status
@@ -510,6 +572,37 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                     Download Sample CSV
                   </Button>
                 </div>
+                
+                {/* CSV Preview */}
+                {csvPreview.length > 0 && (
+                  <div className="grid gap-2">
+                    <Label>Preview (First 5 rows)</Label>
+                    <div className="border rounded-md overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {Object.keys(csvPreview[0]).map((header) => (
+                              <TableHead key={header} className="text-xs">
+                                {header}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {csvPreview.map((row, index) => (
+                            <TableRow key={index}>
+                              {Object.values(row).map((value: any, i) => (
+                                <TableCell key={i} className="text-xs py-2">
+                                  {value || '-'}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>
@@ -607,8 +700,39 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
 
       <Card>
         <CardHeader>
-          <CardTitle>All Booth People</CardTitle>
-          <CardDescription>Manage all registered booth people and their details</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All Booth People</CardTitle>
+              <CardDescription>Manage all registered booth people and their details</CardDescription>
+              {searchQuery && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Showing {filteredData.length} of {boothPeople.length} records
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search all columns..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-64 pl-10"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -629,7 +753,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                     </TableRow>
                   </TableHeader>
                 <TableBody>
-                  {boothPeople.map((person) => (
+                  {filteredData.map((person) => (
                     <TableRow key={person.id}>
                       <TableCell className="font-medium">{person.name}</TableCell>
                       <TableCell>{person.phone}</TableCell>
@@ -658,38 +782,19 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                 </TableBody>
               </Table>
               
+              {filteredData.length === 0 && boothPeople.length > 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No matching records found for "{searchQuery}".
+                </div>
+              )}
+              
               {boothPeople.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No booth people found. Add one to get started.
                 </div>
               )}
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={goToPrevPage} 
-                      disabled={currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={goToNextPage} 
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
+
             </>
           )}
         </CardContent>

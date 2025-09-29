@@ -8,8 +8,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limitParam = searchParams.get('limit');
     const search = searchParams.get('search');
+    
+    // If limit is 'all', fetch all records without pagination
+    const limit = limitParam === 'all' ? 10000 : parseInt(limitParam || '50');
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -23,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error, count } = await query
       .order('inserted_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .range(offset, limit === 10000 ? 9999 : offset + limit - 1);
 
     if (error) {
       console.error('Supabase error:', error);
@@ -35,7 +38,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ 
       data: data, 
       count,
-      pagination: {
+      pagination: limit === 10000 ? null : {
         page,
         limit,
         totalPages: Math.ceil((count || 0) / limit)
@@ -75,14 +78,59 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const requiredHeaders = ['name', 'phone', 'vpa'];
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      const headers = lines[0].split(',').map(h => h.trim());
+      
+      // Map common header variations to standard names (case-insensitive)
+      const headerMapping: { [key: string]: string } = {
+        'name': 'name',
+        'Name': 'name',
+        'NAME': 'name',
+        'phone': 'phone',
+        'Phone': 'phone',
+        'PHONE': 'phone',
+        'customerVPAs': 'customerVPAs',
+        'CustomerVPAs': 'customerVPAs',
+        'CUSTOMERVPAS': 'customerVPAs',
+        'customer_vpas': 'customerVPAs',
+        'Customer_VPAs': 'customerVPAs',
+        'vpa': 'customerVPAs',
+        'VPA': 'customerVPAs',
+        'vpas': 'customerVPAs',
+        'VPAs': 'customerVPAs',
+        'email': 'email',
+        'Email': 'email',
+        'EMAIL': 'email',
+        'status': 'status',
+        'Status': 'status',
+        'STATUS': 'status'
+      };
+      
+      // Normalize headers using the mapping (handle case variations)
+      const normalizedHeaders = headers.map(header => {
+        // Try exact match first
+        if (headerMapping[header]) {
+          return headerMapping[header];
+        }
+        // Try lowercase match
+        const lowerHeader = header.toLowerCase();
+        if (headerMapping[lowerHeader]) {
+          return headerMapping[lowerHeader];
+        }
+        // Try without spaces and lowercase
+        const cleanHeader = header.toLowerCase().replace(/\s+/g, '');
+        if (headerMapping[cleanHeader]) {
+          return headerMapping[cleanHeader];
+        }
+        return header;
+      });
+      
+      const requiredHeaders = ['name', 'phone', 'customerVPAs'];
+      const missingHeaders = requiredHeaders.filter(h => !normalizedHeaders.includes(h));
       
       if (missingHeaders.length > 0) {
         return Response.json({ 
           error: 'Missing required columns', 
-          details: `Missing: ${missingHeaders.join(', ')}` 
+          details: `Missing: ${missingHeaders.join(', ')}. Expected columns: name, phone, customerVPAs (or variations like vpa, customer_vpas)` 
         }, { status: 400 });
       }
 
@@ -90,13 +138,13 @@ export async function POST(request: NextRequest) {
         const values = line.split(',').map(v => v.trim());
         const person: any = {};
         
-        headers.forEach((header, i) => {
+        normalizedHeaders.forEach((header, i) => {
           person[header] = values[i] || '';
         });
 
         // Validate each record
         if (!person.name || !person.phone || !person.customerVPAs) {
-          throw new Error(`Row ${index + 2}: Name, phone, and VPA are required`);
+          throw new Error(`Row ${index + 2}: Name, phone, and customerVPAs are required`);
         }
 
         // Validate phone format
@@ -120,10 +168,10 @@ export async function POST(request: NextRequest) {
       };
       });
 
-      if (boothPeople.length > 1000) {
+      if (boothPeople.length > 3000) {
         return Response.json({ 
           error: 'File too large', 
-          details: 'Maximum 1000 records allowed per bulk upload' 
+          details: 'Maximum 3000 records allowed per bulk upload' 
         }, { status: 400 });
       }
 
@@ -227,10 +275,10 @@ export async function PUT(request: NextRequest) {
         }, { status: 400 });
       }
 
-      if (body.boothPeople.length > 1000) {
+      if (body.boothPeople.length > 3000) {
         return Response.json({ 
           error: 'Array too large', 
-          details: 'Maximum 1000 records allowed per bulk update' 
+          details: 'Maximum 3000 records allowed per bulk update' 
         }, { status: 400 });
       }
 
