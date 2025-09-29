@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -24,18 +25,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Edit, Trash2, UserPlus, Upload, Download, Search, X } from "lucide-react"
+import { Plus, Edit, Trash2, UserPlus, Upload, Download, Search, X, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface BoothPerson {
-  id: number
-  name: string
+  id: string
+  route_no?: string
+  vpa: string
+  cc_no: string
   phone: string
-  customerVPAs: string
-  email: string | null
-  status: string | null
-  inserted_at: string
+  name?: string
   updated_at: string
+  inserted_at: string
 }
 
 interface ApiResponse {
@@ -59,21 +60,26 @@ export function BoothPeople() {
   const [addingVPATo, setAddingVPATo] = useState<string | null>(null)
   const [newVPA, setNewVPA] = useState("")
   const [formData, setFormData] = useState({
-    name: "",
+    route_no: "",
+    vpa: "",
+    cc_no: "",
     phone: "",
-    customerVPAs: "",
-    email: "",
-    status: "",
+    name: "",
   })
   const [editFormData, setEditFormData] = useState({
-    name: "",
+    route_no: "",
+    vpa: "",
+    cc_no: "",
     phone: "",
-    customerVPAs: "",
-    email: "",
-    status: "",
+    name: "",
   })
   const [searchQuery, setSearchQuery] = useState("")
   const [filteredData, setFilteredData] = useState<BoothPerson[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectAll, setSelectAll] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState(0)
+  const [deleteProgressMessage, setDeleteProgressMessage] = useState('')
   const { toast } = useToast()
 
   // Filter data based on search query
@@ -82,18 +88,217 @@ export function BoothPeople() {
     
     const searchTerm = query.toLowerCase()
     return data.filter(person => 
-      person.name.toLowerCase().includes(searchTerm) ||
+      (person.name?.toLowerCase() || '').includes(searchTerm) ||
+      (person.route_no?.toLowerCase() || '').includes(searchTerm) ||
       person.phone.toLowerCase().includes(searchTerm) ||
-      person.customerVPAs.toLowerCase().includes(searchTerm) ||
-      (person.email && person.email.toLowerCase().includes(searchTerm)) ||
-      (person.status && person.status.toLowerCase().includes(searchTerm))
+      person.vpa.toLowerCase().includes(searchTerm) ||
+      person.cc_no.toLowerCase().includes(searchTerm)
     )
+  }
+
+  // Handle individual checkbox selection
+  const handleSelectPerson = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  // Handle select all checkbox
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds(new Set())
+      setSelectAll(false)
+    } else {
+      setSelectedIds(new Set(filteredData.map(person => person.id)))
+      setSelectAll(true)
+    }
+  }
+
+  // Update selectAll state when individual selections change
+  useEffect(() => {
+    if (filteredData.length === 0) {
+      setSelectAll(false)
+    } else {
+      setSelectAll(selectedIds.size === filteredData.length)
+    }
+  }, [selectedIds, filteredData])
+
+  // Bulk delete selected records
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select records to delete",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} records?`)) {
+      return
+    }
+
+    const idsToDelete = Array.from(selectedIds)
+    const totalCount = idsToDelete.length
+    const batchSize = 1000 // API limit
+
+    try {
+      setIsDeleting(true)
+      setDeleteProgress(0)
+      setDeleteProgressMessage(`Preparing to delete ${totalCount} records...`)
+
+      let deletedCount = 0
+      const failedBatches: string[] = []
+
+      // Process in batches to handle API limit
+      for (let i = 0; i < idsToDelete.length; i += batchSize) {
+        const batch = idsToDelete.slice(i, i + batchSize)
+        const batchNumber = Math.floor(i / batchSize) + 1
+        const totalBatches = Math.ceil(idsToDelete.length / batchSize)
+
+        setDeleteProgressMessage(`Deleting batch ${batchNumber} of ${totalBatches} (${batch.length} records)...`)
+
+        try {
+          const response = await fetch('/api/booth-people/bulk-delete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ids: batch }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.details || `Failed to delete batch ${batchNumber}`)
+          }
+
+          const result = await response.json()
+          deletedCount += result.count
+
+          // Update progress
+          const progress = Math.round((deletedCount / totalCount) * 100)
+          setDeleteProgress(progress)
+
+        } catch (batchError) {
+          console.error(`Error deleting batch ${batchNumber}:`, batchError)
+          failedBatches.push(`Batch ${batchNumber}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
+        }
+      }
+
+      // Remove deleted records from state and session storage
+      const remainingPeople = boothPeople.filter(person => !selectedIds.has(person.id))
+      setBoothPeople(remainingPeople)
+      saveSessionData(remainingPeople)
+      
+      // Clear selection
+      setSelectedIds(new Set())
+      setSelectAll(false)
+
+      if (failedBatches.length > 0) {
+        // Some batches failed
+        setDeleteProgressMessage(`Deleted ${deletedCount} of ${totalCount} records. Some batches failed.`)
+        toast({
+          title: "Partial Success",
+          description: `Deleted ${deletedCount} of ${totalCount} records. Errors: ${failedBatches.length}`,
+          variant: "destructive",
+        })
+      } else {
+        // All records deleted successfully
+        setDeleteProgress(100)
+        setDeleteProgressMessage(`Successfully deleted ${deletedCount} records`)
+        toast({
+          title: "Success",
+          description: `Successfully deleted ${deletedCount} records`,
+        })
+      }
+
+      // Clear progress after a delay
+      setTimeout(() => {
+        setIsDeleting(false)
+        setDeleteProgress(0)
+        setDeleteProgressMessage('')
+      }, 3000)
+
+    } catch (error) {
+      console.error('Error deleting records:', error)
+      setIsDeleting(false)
+      setDeleteProgress(0)
+      setDeleteProgressMessage('')
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete selected records",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Session storage key
+  const SESSION_STORAGE_KEY = 'booth_people_data'
+  const SESSION_STORAGE_EXPIRY = 30 * 60 * 1000 // 30 minutes
+
+  // Check if data exists in session storage and is not expired
+  const getSessionData = (): BoothPerson[] | null => {
+    try {
+      const stored = sessionStorage.getItem(SESSION_STORAGE_KEY)
+      if (!stored) return null
+      
+      const { data, timestamp } = JSON.parse(stored)
+      const now = new Date().getTime()
+      
+      // Check if data is expired (30 minutes)
+      if (now - timestamp > SESSION_STORAGE_EXPIRY) {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY)
+        return null
+      }
+      
+      return data
+    } catch (error) {
+      console.error('Error reading session storage:', error)
+      return null
+    }
+  }
+
+  // Save data to session storage
+  const saveSessionData = (data: BoothPerson[]) => {
+    try {
+      const dataToStore = {
+        data,
+        timestamp: new Date().getTime()
+      }
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(dataToStore))
+    } catch (error) {
+      console.error('Error saving to session storage:', error)
+    }
   }
 
   // Fetch booth people from API - always fetch all records
   const fetchBoothPeople = async () => {
     try {
       setIsLoading(true)
+      
+      // Check session storage first
+      const sessionData = getSessionData()
+      if (sessionData) {
+        // Transform session data to ensure it has the new format
+        const transformedSessionData = sessionData.map((person: any) => ({
+          id: person.id,
+          route_no: person.route_no || null,
+          vpa: person.vpa || person.customerVPAs || '',
+          cc_no: person.cc_no || '',
+          phone: person.phone || '',
+          name: person.name || '',
+          updated_at: person.updated_at || person.inserted_at || new Date().toISOString()
+        }))
+        setBoothPeople(transformedSessionData)
+        return
+      }
+      
       const response = await fetch(`/api/booth-people?limit=all`)
       
       if (!response.ok) {
@@ -101,7 +306,22 @@ export function BoothPeople() {
       }
       
       const result: ApiResponse = await response.json()
-      setBoothPeople(result.data)
+      
+      // Transform old data format to new format
+      const transformedData = result.data.map((person: any) => ({
+        id: person.id,
+        route_no: person.route_no || null,
+        vpa: person.vpa || person.customerVPAs || '',
+        cc_no: person.cc_no || '',
+        phone: person.phone || '',
+        name: person.name || '',
+        updated_at: person.updated_at || person.inserted_at || new Date().toISOString()
+      }))
+      
+      setBoothPeople(transformedData)
+      
+      // Save to session storage
+      saveSessionData(transformedData)
     } catch (error) {
       console.error('Error fetching booth people:', error)
       toast({
@@ -114,7 +334,15 @@ export function BoothPeople() {
     }
   }
 
+  // Clear session storage and refresh data
+  const clearSessionAndRefresh = () => {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY)
+    fetchBoothPeople()
+  }
+
   useEffect(() => {
+    // Clear any stale session data on component mount
+    sessionStorage.removeItem(SESSION_STORAGE_KEY)
     fetchBoothPeople()
   }, [])
 
@@ -125,11 +353,11 @@ export function BoothPeople() {
   }, [boothPeople, searchQuery])
 
   const downloadSampleCSV = () => {
-    const csvContent = `Name,Phone,CustomerVPAs,Email,Status
-John Doe,9876543210,johndoe@ybl.com,john@example.com,Active
-Jane Smith,9876543211,janesmith@ybl.com,jane@example.com,Active
-Mike Johnson,9876543212,mike@ybl.com,mike@example.com,Active
-Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
+    const csvContent = `Route No,VPA,CC No,Phone,Name
+ROUTE001,johndoe@ybl,CC1234567890,9876543210,John Doe
+ROUTE002,janesmith@ybl,CC1234567891,9876543211,Jane Smith
+ROUTE003,mike@ybl,CC1234567892,9876543212,Mike Johnson
+ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
 
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = window.URL.createObjectURL(blob)
@@ -156,16 +384,23 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         if (lines.length >= 2) {
           const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
           
-          // Map common header variations to standard names
+          // Map common header variations to standard names for new schema
           const headerMapping: { [key: string]: string } = {
-            'name': 'name',
+            'route_no': 'route_no',
+            'route no': 'route_no',
+            'route': 'route_no',
+            'vpa': 'vpa',
+            'upi id': 'vpa',
+            'upi': 'vpa',
+            'cc_no': 'cc_no',
+            'cc no': 'cc_no',
+            'cc': 'cc_no',
             'phone': 'phone',
-            'customerVPAs': 'customerVPAs',
-            'customer_vpas': 'customerVPAs',
-            'vpa': 'customerVPAs',
-            'vpas': 'customerVPAs',
-            'email': 'email',
-            'status': 'status'
+            'mobile': 'phone',
+            'contact': 'phone',
+            'name': 'name',
+            'person name': 'name',
+            'full name': 'name'
           };
           
           // Normalize headers using the mapping
@@ -233,7 +468,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       const normalizedHeaders = headers.map(header => headerMapping[header] || header);
       
       // Validate required headers
-      const requiredHeaders = ['name', 'phone', 'customerVPAs']
+      const requiredHeaders = ['vpa', 'cc_no']
       const missingHeaders = requiredHeaders.filter(h => !normalizedHeaders.includes(h))
       
       if (missingHeaders.length > 0) {
@@ -252,28 +487,22 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         })
 
         // Validate required fields
-        if (!record.name || !record.phone || !record.customerVPAs) {
-          throw new Error(`Row ${index + 2}: Missing required fields (name, phone, customerVPAs)`)
-        }
-
-        // Validate phone format
-        const phoneRegex = /^\d{10}$/
-        if (!phoneRegex.test(record.phone)) {
-          throw new Error(`Row ${index + 2}: Invalid phone format. Must be 10 digits`)
+        if (!record.vpa || !record.cc_no) {
+          throw new Error(`Row ${index + 2}: Missing required fields (vpa, cc_no)`)
         }
 
         // Validate VPA format
         const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/
-        if (!vpaRegex.test(record.customerVPAs)) {
+        if (!vpaRegex.test(record.vpa)) {
           throw new Error(`Row ${index + 2}: Invalid VPA format. Must be like username@bank`)
         }
 
         return {
-          name: record.name,
-          phone: record.phone,
-          customerVPAs: record.customerVPAs,
-          email: record.email || null,
-          status: record.status || 'Active'
+          route_no: record.route_no || null,
+          vpa: record.vpa,
+          cc_no: record.cc_no,
+          phone: record.phone || null,
+          name: record.name || null
         }
       })
 
@@ -282,9 +511,9 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       
       // Convert the parsed data back to CSV format for the API
       const csvContent = [
-        'name,phone,customerVPAs,email,status', // headers
+        'route_no,vpa,cc_no,phone,name', // headers
         ...boothPeople.map(person => 
-          `${person.name},${person.phone},${person.customerVPAs},${person.email || ''},${person.status}`
+          `${person.route_no || ''},${person.vpa},${person.cc_no},${person.phone || ''},${person.name || ''}`
         )
       ].join('\n')
       
@@ -324,10 +553,10 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
   }
 
   const handleAddPerson = async () => {
-    if (!formData.name || !formData.phone || !formData.customerVPAs) {
+    if (!formData.vpa || !formData.cc_no) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields (VPA and CC No)",
         variant: "destructive",
       })
       return
@@ -340,11 +569,11 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone,
-          vpa: formData.customerVPAs,
-          email: formData.email || null,
-          status: formData.status || 'Active'
+          route_no: formData.route_no || null,
+          vpa: formData.vpa,
+          cc_no: formData.cc_no,
+          phone: formData.phone || null,
+          name: formData.name || null
         }),
       })
 
@@ -360,7 +589,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
       })
 
       setIsAddDialogOpen(false)
-      setFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
+      setFormData({ route_no: "", vpa: "", cc_no: "", phone: "", name: "" })
       fetchBoothPeople() // Refresh the data after adding
     } catch (error) {
       console.error('Error adding person:', error)
@@ -375,19 +604,19 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
   const handleEditPerson = (person: BoothPerson) => {
     setEditingPerson(person)
     setEditFormData({
-      name: person.name,
-      phone: person.phone,
-      customerVPAs: person.customerVPAs,
-      email: person.email || "",
-      status: person.status || "",
+      route_no: person.route_no || "",
+      vpa: person.vpa,
+      cc_no: person.cc_no,
+      phone: person.phone || "",
+      name: person.name || "",
     })
   }
 
   const handleUpdatePerson = async () => {
-    if (!editingPerson || !editFormData.name || !editFormData.phone || !editFormData.customerVPAs) {
+    if (!editingPerson || !editFormData.vpa || !editFormData.cc_no) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields (VPA and CC No)",
         variant: "destructive",
       })
       return
@@ -401,11 +630,11 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
         },
         body: JSON.stringify({
           id: editingPerson.id,
-          name: editFormData.name,
-          phone: editFormData.phone,
-          vpa: editFormData.customerVPAs,
-          email: editFormData.email || null,
-          status: editFormData.status || 'Active'
+          route_no: editFormData.route_no || null,
+          vpa: editFormData.vpa,
+          cc_no: editFormData.cc_no,
+          phone: editFormData.phone || null,
+          name: editFormData.name || null
         }),
       })
 
@@ -512,25 +741,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
     }
   }
 
-  // Pagination controls
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      fetchBoothPeople(currentPage + 1, showAll)
-    }
-  }
-
-  const goToPrevPage = () => {
-    if (currentPage > 1) {
-      fetchBoothPeople(currentPage - 1, showAll)
-    }
-  }
-
-  const toggleShowAll = () => {
-    const newShowAll = !showAll
-    setShowAll(newShowAll)
-    setCurrentPage(1) // Reset to first page
-    fetchBoothPeople(1, newShowAll)
-  }
+  // Removed pagination functions since we fetch all records at once
 
   return (
     <div className="space-y-6">
@@ -563,7 +774,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                     onChange={handleFileSelect}
                   />
                   <p className="text-sm text-muted-foreground">
-                    Upload a CSV file with columns: Name, Phone, CustomerVPAs, Email, Status
+                    Upload a CSV file with columns: Route No, VPA, CC No, Phone, Name
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -618,7 +829,7 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
             setIsAddDialogOpen(open)
             if (open) {
-              setFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "Active" })
+              setFormData({ route_no: "", vpa: "", cc_no: "", phone: "", name: "" })
             }
           }}>
             <DialogTrigger asChild>
@@ -634,62 +845,56 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Name *</Label>
+                  <Label htmlFor="route_no">Route No</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Enter full name"
+                    id="route_no"
+                    value={formData.route_no}
+                    onChange={(e) => setFormData({ ...formData, route_no: e.target.value })}
+                    placeholder="Enter route number (optional)"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone *</Label>
+                  <Label htmlFor="vpa">VPA *</Label>
                   <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="customerVPAs">Customer VPA *</Label>
-                  <Input
-                    id="customerVPAs"
-                    value={formData.customerVPAs}
-                    onChange={(e) => setFormData({ ...formData, customerVPAs: e.target.value })}
+                    id="vpa"
+                    value={formData.vpa}
+                    onChange={(e) => setFormData({ ...formData, vpa: e.target.value })}
                     placeholder="Enter UPI ID (e.g., name@ybl)"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="cc_no">CC No *</Label>
                   <Input
-                    id="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Enter email (optional)"
+                    id="cc_no"
+                    value={formData.cc_no}
+                    onChange={(e) => setFormData({ ...formData, cc_no: e.target.value })}
+                    placeholder="Enter CC number"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value })}
-                  >
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="Enter phone number (optional)"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter full name (optional)"
+                  />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddPerson} disabled={!formData.name || !formData.phone || !formData.customerVPAs}>
+                <Button onClick={handleAddPerson} disabled={!formData.vpa || !formData.cc_no}>
                   Add Person
                 </Button>
               </DialogFooter>
@@ -710,26 +915,72 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search all columns..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 pl-10"
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Total Booth Members: {filteredData.length}
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedIds.size > 0 && (
+                  <>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleBulkDelete}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Selected ({selectedIds.size})
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedIds(new Set())
+                        setSelectAll(false)
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearSessionAndRefresh}
+                  disabled={isLoading}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Search all columns..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-64 pl-10"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -741,46 +992,59 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Customer VPA</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                <TableBody>
-                  {filteredData.map((person) => (
-                    <TableRow key={person.id}>
-                      <TableCell className="font-medium">{person.name}</TableCell>
-                      <TableCell>{person.phone}</TableCell>
-                      <TableCell><code className="bg-muted px-2 py-1 rounded">{person.customerVPAs}</code></TableCell>
-                      <TableCell>{person.email || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={person.status === 'Active' ? 'default' : 'secondary'}>
-                          {person.status || '-'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEditPerson(person)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => setAddingVPATo(person.id)}>
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDeletePerson(person.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[calc(100vh-250px)] overflow-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background border-b z-20 shadow-sm">
+                          <TableRow className="bg-background">
+                            <TableHead className="w-12 bg-background">
+                              <Checkbox
+                                checked={selectAll}
+                                onCheckedChange={(checked) => handleSelectAll()}
+                              />
+                            </TableHead>
+                            <TableHead className="w-16 bg-background">S.No</TableHead>
+                            <TableHead className="bg-background">Route No</TableHead>
+                            <TableHead className="bg-background">VPA</TableHead>
+                            <TableHead className="bg-background">CC No</TableHead>
+                            <TableHead className="bg-background">Phone</TableHead>
+                            <TableHead className="bg-background">Name</TableHead>
+                            <TableHead className="bg-background">Updated Date</TableHead>
+                            <TableHead className="bg-background">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredData.map((person, index) => (
+                            <TableRow key={person.id} className={selectedIds.has(person.id) ? "bg-muted/50" : ""}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedIds.has(person.id)}
+                                  onCheckedChange={(checked) => handleSelectPerson(person.id)}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">{index + 1}</TableCell>
+                              <TableCell>{person.route_no || '-'}</TableCell>
+                              <TableCell><code className="bg-muted px-2 py-1 rounded">{person.vpa}</code></TableCell>
+                              <TableCell>{person.cc_no}</TableCell>
+                              <TableCell>{person.phone}</TableCell>
+                              <TableCell>{person.name || '-'}</TableCell>
+                              <TableCell>{new Date(person.updated_at).toLocaleDateString()}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => handleEditPerson(person)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleDeletePerson(person.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
               
               {filteredData.length === 0 && boothPeople.length > 0 && (
                 <div className="text-center py-8 text-muted-foreground">
@@ -794,17 +1058,15 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
                 </div>
               )}
 
-
             </>
           )}
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingPerson} onOpenChange={(open) => {
         if (!open) {
           setEditingPerson(null)
-          setEditFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
+          setEditFormData({ route_no: "", vpa: "", cc_no: "", phone: "", name: "" })
         }
       }}>
         <DialogContent>
@@ -814,15 +1076,31 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-name">Name *</Label>
+              <Label htmlFor="edit-route_no">Route No</Label>
               <Input
-                id="edit-name"
-                value={editFormData.name}
-                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                id="edit-route_no"
+                value={editFormData.route_no}
+                onChange={(e) => setEditFormData({ ...editFormData, route_no: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-phone">Phone *</Label>
+              <Label htmlFor="edit-vpa">VPA *</Label>
+              <Input
+                id="edit-vpa"
+                value={editFormData.vpa}
+                onChange={(e) => setEditFormData({ ...editFormData, vpa: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-cc_no">CC No *</Label>
+              <Input
+                id="edit-cc_no"
+                value={editFormData.cc_no}
+                onChange={(e) => setEditFormData({ ...editFormData, cc_no: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-phone">Phone</Label>
               <Input
                 id="edit-phone"
                 value={editFormData.phone}
@@ -830,45 +1108,22 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-customerVPAs">Customer VPA *</Label>
+              <Label htmlFor="edit-name">Name</Label>
               <Input
-                id="edit-customerVPAs"
-                value={editFormData.customerVPAs}
-                onChange={(e) => setEditFormData({ ...editFormData, customerVPAs: e.target.value })}
+                id="edit-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                value={editFormData.email}
-                onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <Select
-                value={editFormData.status}
-                onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
-              >
-                <SelectTrigger id="edit-status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setEditingPerson(null)
-              setEditFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
+              setEditFormData({ route_no: "", vpa: "", cc_no: "", phone: "", name: "" })
             }}>
               Cancel
             </Button>
-            <Button onClick={handleUpdatePerson} disabled={!editFormData.name || !editFormData.phone || !editFormData.customerVPAs}>
+            <Button onClick={handleUpdatePerson} disabled={!editFormData.vpa || !editFormData.cc_no}>
               Update Person
             </Button>
           </DialogFooter>
@@ -905,6 +1160,25 @@ Sarah Wilson,9876543213,sarah@ybl.com,sarah@example.com,Active`
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      
+      {/* Progress Indicator */}
+      {isDeleting && (
+        <div className="fixed bottom-4 right-4 bg-background border rounded-lg shadow-lg p-4 min-w-[250px] z-50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+            <span className="text-sm font-medium">Deleting Records...</span>
+          </div>
+          {deleteProgressMessage && (
+            <p className="text-xs text-muted-foreground mb-2">{deleteProgressMessage}</p>
+          )}
+          <div className="w-full bg-secondary rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-300" 
+              style={{ width: `${deleteProgress}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+      </div>
   )
 }

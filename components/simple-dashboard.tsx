@@ -62,7 +62,7 @@ export function SimpleDashboard() {
   const fetchBoothPeopleFromAPI = async () => {
     try {
       setIsFetchingBoothPeople(true)
-      const response = await fetch('/api/booth-people?page=1&limit=1000') // Fetch all booth people
+      const response = await fetch('/api/booth-people?limit=all') // Fetch all booth people
 
       if (!response.ok) {
         throw new Error('Failed to fetch booth people')

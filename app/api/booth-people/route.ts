@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     
     // If limit is 'all', fetch all records without pagination
-    const limit = limitParam === 'all' ? 10000 : parseInt(limitParam || '50');
+    const limit = limitParam === 'all' ? 1000000 : parseInt(limitParam || '50');
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -24,9 +24,55 @@ export async function GET(request: NextRequest) {
       query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,customerVPAs.ilike.%${search}%`);
     }
 
-    const { data, error, count } = await query
-      .order('inserted_at', { ascending: false })
-      .range(offset, limit === 10000 ? 9999 : offset + limit - 1);
+    let data, error, count;
+    
+    if (limit === 1000000) {
+      // For 'all' records, fetch in batches of 1000 to avoid Supabase limit
+      const batchSize = 1000;
+      let allData: any[] = [];
+      let totalCount = 0;
+      let batchOffset = 0;
+      
+      // First, get the total count
+      const { count: totalRecords } = await query;
+      totalCount = totalRecords || 0;
+      
+      // Fetch all records in batches
+      while (batchOffset < totalCount) {
+        const batchQuery = supabase
+          .from('booth_people')
+          .select('*')
+          .order('inserted_at', { ascending: false })
+          .range(batchOffset, Math.min(batchOffset + batchSize - 1, totalCount - 1));
+        
+        // Add search to batch query if provided
+        if (search) {
+          batchQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%,customerVPAs.ilike.%${search}%`);
+        }
+        
+        const batchResult = await batchQuery;
+        
+        if (batchResult.error) {
+          throw batchResult.error;
+        }
+        
+        allData = allData.concat(batchResult.data || []);
+        batchOffset += batchSize;
+      }
+      
+      data = allData;
+      error = null;
+      count = totalCount;
+    } else {
+      // For paginated requests, use range
+      const queryResult = await query
+        .order('inserted_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      
+      data = queryResult.data;
+      error = queryResult.error;
+      count = queryResult.count;
+    }
 
     if (error) {
       console.error('Supabase error:', error);
@@ -38,7 +84,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ 
       data: data, 
       count,
-      pagination: limit === 10000 ? null : {
+      pagination: limit === 1000000 ? null : {
         page,
         limit,
         totalPages: Math.ceil((count || 0) / limit)
