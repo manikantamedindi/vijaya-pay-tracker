@@ -40,17 +40,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
       
       const result = await response.json()
       
-      // Transform data to ensure consistent format
-      const transformedData = result.data.map((person: any) => ({
-        id: person.id,
-        route_no: person.route_no || null,
-        vpa: person.vpa || person.customerVPAs || '',
-        cc_no: person.cc_no || '',
-        phone: person.phone || '',
-        name: person.name || '',
-        updated_at: person.updated_at || person.inserted_at || new Date().toISOString(),
-        inserted_at: person.inserted_at || new Date().toISOString()
-      }))
+      // Transform old data format to new format
+        const transformedData = result.data.map((person: any) => ({
+          id: person.id,
+          route_no: person.route_no || null,
+          vpa: person.vpa || '',
+          cc_no: person.cc_no || '',
+          phone: person.phone || '',
+          name: person.name || '',
+          inserted_at: person.inserted_at || new Date().toISOString(),
+          updated_at: person.updated_at || new Date().toISOString()
+        }))
       
       setBoothPeople(transformedData)
       

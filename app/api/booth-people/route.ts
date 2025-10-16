@@ -243,9 +243,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate VPA format
-        const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
+        const vpaRegex = /^[a-zA-Z0-9._@-]+$/;
         if (!vpaRegex.test(person.vpa)) {
-          throw new Error(`Row ${index + 2}: VPA must be in format like username@bank`);
+          throw new Error(`Row ${index + 2}: VPA contains invalid characters`);
         }
 
         // Check for duplicates in existing database
@@ -314,11 +314,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate VPA format (basic validation)
-    const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
+    const vpaRegex = /^[a-zA-Z0-9._@-]+$/;
     if (!vpaRegex.test(vpaValue)) {
       return Response.json({ 
         error: 'Invalid VPA format', 
-        details: 'VPA must be in format like username@bank' 
+        details: 'VPA contains invalid characters' 
       }, { status: 400 });
     }
     
@@ -437,7 +437,7 @@ export async function PUT(request: NextRequest) {
         if (person.vpa) {
           const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
           if (!vpaRegex.test(person.vpa)) {
-            throw new Error(`Record ${index + 1}: VPA must be in format like username@bank`);
+            throw new Error(`Record ${index + 1}: VPA contains invalid characters`);
           }
         }
 
@@ -494,11 +494,11 @@ export async function PUT(request: NextRequest) {
 
     // Validate VPA format if provided
     if (body.vpa) {
-      const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
+      const vpaRegex = /^[a-zA-Z0-9._@-]+$/;
       if (!vpaRegex.test(body.vpa)) {
         return Response.json({ 
           error: 'Invalid VPA format', 
-          details: 'VPA must be in format like username@bank' 
+          details: 'VPA contains invalid characters' 
         }, { status: 400 });
       }
       
