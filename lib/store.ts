@@ -2,16 +2,14 @@ import { configureStore, createSlice, type PayloadAction } from "@reduxjs/toolki
 
 // Types
 interface BoothPerson {
-  id: string | number
-  name: string
+  id: number
+  route_no?: string
+  vpa: string
+  cc_no: string
   phone: string
-  address?: string // Make address optional since API doesn't return it
-  customerVPAs: string // Single VPA string, not an array
-  email?: string | null
-  status?: string | null
-  createdAt?: string
-  inserted_at?: string
-  updated_at?: string
+  name?: string
+  inserted_at: string
+  updated_at: string
 }
 
 interface Transaction {
@@ -45,11 +43,12 @@ const appSlice = createSlice({
       state.boothPeople = action.payload
       saveStateToStorage(state)
     },
-    addBoothPerson: (state, action: PayloadAction<Omit<BoothPerson, "id" | "createdAt">>) => {
+    addBoothPerson: (state, action: PayloadAction<Omit<BoothPerson, "id" | "inserted_at" | "updated_at">>) => {
       const newPerson: BoothPerson = {
         ...action.payload,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
+        id: Date.now(),
+        inserted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
       state.boothPeople.push(newPerson)
       saveStateToStorage(state)
@@ -61,15 +60,15 @@ const appSlice = createSlice({
         saveStateToStorage(state)
       }
     },
-    deleteBoothPerson: (state, action: PayloadAction<string>) => {
+    deleteBoothPerson: (state, action: PayloadAction<number>) => {
       state.boothPeople = state.boothPeople.filter((p) => p.id !== action.payload)
       saveStateToStorage(state)
     },
-    addVPAToPerson: (state, action: PayloadAction<{ personId: string; vpa: string }>) => {
+    addVPAToPerson: (state, action: PayloadAction<{ personId: number; vpa: string }>) => {
       const person = state.boothPeople.find((p) => p.id === action.payload.personId)
       if (person) {
-        // Simply replace the VPA string
-        person.customerVPAs = action.payload.vpa
+        // Update the VPA field
+        person.vpa = action.payload.vpa
         saveStateToStorage(state)
       }
     },

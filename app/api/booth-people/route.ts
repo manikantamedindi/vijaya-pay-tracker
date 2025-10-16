@@ -177,6 +177,52 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
+      // Extract VPAs from CSV file to check for duplicates within the file
+      const csvVpas = new Set();
+      const duplicateVpasInFile = new Set();
+      
+      // First pass: identify duplicate VPAs in the CSV file
+      lines.slice(1).forEach((line, index) => {
+        const values = line.split(',').map(v => v.trim());
+        const person: any = {};
+        
+        normalizedHeaders.forEach((header, i) => {
+          person[header] = values[i] || '';
+        });
+
+        if (person.vpa) {
+          const vpa = person.vpa.trim().toLowerCase();
+          if (csvVpas.has(vpa)) {
+            duplicateVpasInFile.add(vpa);
+          } else {
+            csvVpas.add(vpa);
+          }
+        }
+      });
+
+      if (duplicateVpasInFile.size > 0) {
+        return Response.json({ 
+          error: 'Duplicate VPAs found in the same file', 
+          details: `Duplicate VPAs: ${Array.from(duplicateVpasInFile).join(', ')}` 
+        }, { status: 400 });
+      }
+
+      // Check for duplicates in the existing database
+      let existingVpas = new Set();
+      if (csvVpas.size > 0) {
+        const { data: existingPeople, error: fetchError } = await supabase
+          .from('booth_people')
+          .select('vpa')
+          .in('vpa', Array.from(csvVpas));
+
+        if (fetchError) {
+          console.error('Error fetching existing VPAs:', fetchError);
+          // Continue processing even if we can't fetch existing data
+        } else {
+          existingVpas = new Set(existingPeople?.map(p => p.vpa.toLowerCase()) || []);
+        }
+      }
+
       const boothPeople = lines.slice(1).map((line, index) => {
         const values = line.split(',').map(v => v.trim());
         const person: any = {};
@@ -200,6 +246,11 @@ export async function POST(request: NextRequest) {
         const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
         if (!vpaRegex.test(person.vpa)) {
           throw new Error(`Row ${index + 2}: VPA must be in format like username@bank`);
+        }
+
+        // Check for duplicates in existing database
+        if (existingVpas.has(person.vpa.trim().toLowerCase())) {
+          throw new Error(`Row ${index + 2}: VPA ${person.vpa} already exists in the database`);
         }
 
         return {
@@ -271,6 +322,20 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
+    // Check if VPA already exists in the database
+    const { data: existingPerson } = await supabase
+      .from('booth_people')
+      .select('id')
+      .eq('vpa', vpaValue.trim())
+      .single();
+
+    if (existingPerson) {
+      return Response.json({ 
+        error: 'Duplicate VPA', 
+        details: `VPA ${vpaValue} already exists in the database` 
+      }, { status: 409 });
+    }
+    
     // Try inserting with all required fields based on the error
     let insertData = {
       name: body.name.trim(),
@@ -329,6 +394,28 @@ export async function PUT(request: NextRequest) {
         return Response.json({ 
           error: 'Array too large', 
           details: 'Maximum 3000 records allowed per bulk update' 
+        }, { status: 400 });
+      }
+
+      // Check for duplicate VPAs within the same update batch
+      const vpaSet = new Set();
+      const duplicateVpas = new Set();
+      
+      body.boothPeople.forEach((person: any, index: number) => {
+        if (person.vpa) {
+          const vpa = person.vpa.trim().toLowerCase();
+          if (vpaSet.has(vpa)) {
+            duplicateVpas.add(vpa);
+          } else {
+            vpaSet.add(vpa);
+          }
+        }
+      });
+
+      if (duplicateVpas.size > 0) {
+        return Response.json({ 
+          error: 'Duplicate VPAs found in the same update batch', 
+          details: `Duplicate VPAs: ${Array.from(duplicateVpas).join(', ')}` 
         }, { status: 400 });
       }
 
@@ -413,6 +500,21 @@ export async function PUT(request: NextRequest) {
           error: 'Invalid VPA format', 
           details: 'VPA must be in format like username@bank' 
         }, { status: 400 });
+      }
+      
+      // Check if VPA already exists for a different person
+      const { data: existingPerson } = await supabase
+        .from('booth_people')
+        .select('id')
+        .eq('vpa', body.vpa.trim())
+        .neq('id', body.id) // Exclude the current person being updated
+        .single();
+
+      if (existingPerson) {
+        return Response.json({ 
+          error: 'Duplicate VPA', 
+          details: `VPA ${body.vpa} already exists for another person` 
+        }, { status: 409 });
       }
     }
 

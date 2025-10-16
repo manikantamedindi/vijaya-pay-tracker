@@ -325,6 +325,8 @@ export function BoothPeople() {
   }
 
   const [csvPreview, setCsvPreview] = useState<any[]>([])
+  const [duplicateVpas, setDuplicateVpas] = useState<Set<string>>(new Set())
+  const [removeDuplicates, setRemoveDuplicates] = useState(false)
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -357,7 +359,7 @@ export function BoothPeople() {
           // Normalize headers using the mapping
           const normalizedHeaders = headers.map(header => headerMapping[header] || header);
           
-          const previewData = lines.slice(1, 6).map(line => {
+          const allData = lines.slice(1).map((line) => {
             const values = line.split(',').map(v => v.trim());
             const row: any = {};
             normalizedHeaders.forEach((header, i) => {
@@ -365,6 +367,27 @@ export function BoothPeople() {
             });
             return row;
           });
+
+          // Detect duplicate VPAs
+          const vpaCount = new Map<string, number>();
+          allData.forEach(row => {
+            if (row.vpa) {
+              const vpaKey = row.vpa.trim().toLowerCase();
+              vpaCount.set(vpaKey, (vpaCount.get(vpaKey) || 0) + 1);
+            }
+          });
+
+          const duplicates = new Set<string>();
+          vpaCount.forEach((count, vpa) => {
+            if (count > 1) {
+              duplicates.add(vpa);
+            }
+          });
+
+          setDuplicateVpas(duplicates);
+
+          // Show first 5 rows for preview
+          const previewData = allData.slice(0, 5);
           setCsvPreview(previewData);
         } else {
           setCsvPreview([]);
@@ -747,7 +770,21 @@ export function BoothPeople() {
                 {/* CSV Preview */}
                 {csvPreview.length > 0 && (
                   <div className="grid gap-2">
-                    <Label>Preview (First 5 rows)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Preview (First 5 rows)</Label>
+                      {duplicateVpas.size > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="remove-duplicates"
+                            checked={removeDuplicates}
+                            onCheckedChange={(checked) => setRemoveDuplicates(!!checked)}
+                          />
+                          <Label htmlFor="remove-duplicates" className="text-xs">
+                            Remove duplicates ({duplicateVpas.size} found)
+                          </Label>
+                        </div>
+                      )}
+                    </div>
                     <div className="border rounded-md overflow-hidden">
                       <Table>
                         <TableHeader>
@@ -760,15 +797,24 @@ export function BoothPeople() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {csvPreview.map((row, index) => (
-                            <TableRow key={index}>
-                              {Object.values(row).map((value: any, i) => (
-                                <TableCell key={i} className="text-xs py-2">
-                                  {value || '-'}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))}
+                          {csvPreview.map((row, index) => {
+                            const isDuplicate = row.vpa && duplicateVpas.has(row.vpa.trim().toLowerCase());
+                            return (
+                              <TableRow 
+                                key={index} 
+                                className={isDuplicate ? "bg-red-100" : ""}
+                              >
+                                {Object.values(row).map((value: any, i) => (
+                                  <TableCell 
+                                    key={i} 
+                                    className={`text-xs py-2 ${isDuplicate ? "text-red-600 font-medium" : ""}`}
+                                  >
+                                    {value || '-'}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
