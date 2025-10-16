@@ -45,15 +45,13 @@ export async function PUT(
 
     // Update a specific booth person by ID
     const { data, error } = await supabase
-      .from('users')
+      .from('booth_people')
       .update({
         name: body.name,
         phone: body.phone,
         vpa: body.vpa,
-        email: body.email,
-        booth_id: body.booth_id,
-        role: body.role,
-        status: body.status
+        route_no: body.route_no,
+        cc_no: body.cc_no
       })
       .eq('id', id)
       .select()
@@ -83,7 +81,7 @@ export async function DELETE(
 
     // Delete a specific booth person by ID
     const { error } = await supabase
-      .from('users')
+      .from('booth_people')
       .delete()
       .eq('id', id);
 

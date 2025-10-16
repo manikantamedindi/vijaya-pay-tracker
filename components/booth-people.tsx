@@ -311,11 +311,7 @@ export function BoothPeople() {
   }, [boothPeople, searchQuery])
 
   const downloadSampleCSV = () => {
-    const csvContent = `Route No,VPA,CC No,Phone,Name
-ROUTE001,johndoe@ybl,CC1234567890,9876543210,John Doe
-ROUTE002,janesmith@ybl,CC1234567891,9876543211,Jane Smith
-ROUTE003,mike@ybl,CC1234567892,9876543212,Mike Johnson
-ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
+    const csvContent = `route_no,vpa,cc_no,phone,name\nROUTE001,johndoe@ybl,CC1234567890,9876543210,John Doe\nROUTE002,janesmith@ybl,CC1234567891,9876543211,Jane Smith\nROUTE003,mike@ybl,CC1234567892,9876543212,Mike Johnson\nROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
 
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = window.URL.createObjectURL(blob)
@@ -345,20 +341,17 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
           // Map common header variations to standard names for new schema
           const headerMapping: { [key: string]: string } = {
             'route_no': 'route_no',
-            'route no': 'route_no',
-            'route': 'route_no',
-            'vpa': 'vpa',
-            'upi id': 'vpa',
-            'upi': 'vpa',
+            'Route No': 'route_no',
+            'vpa': 'vpa', 
+            'VPA': 'vpa',
             'cc_no': 'cc_no',
-            'cc no': 'cc_no',
-            'cc': 'cc_no',
+            'CC No': 'cc_no',
             'phone': 'phone',
+            'Phone': 'phone',
             'mobile': 'phone',
             'contact': 'phone',
             'name': 'name',
-            'person name': 'name',
-            'full name': 'name'
+            'Name': 'name',
           };
           
           // Normalize headers using the mapping
@@ -410,16 +403,18 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
       const headerMapping: { [key: string]: string } = {
         'name': 'name',
         'phone': 'phone',
-        'customerVPAs': 'customerVPAs',
-        'customervpas': 'customerVPAs', // lowercase version
-        'customer_vpas': 'customerVPAs',
-        'vpa': 'customerVPAs',
-        'vpas': 'customerVPAs',
-        'email': 'email',
-        'status': 'status',
-        // Additional variations for robustness
-        'vpa': 'customerVPAs',
-        'vpas': 'customerVPAs'
+        'vpa': 'vpa',
+        'vpas': 'vpa',
+        'upi': 'vpa',
+        'upi id': 'vpa',
+        'upi_id': 'vpa',
+        'cc_no': 'cc_no',
+        'cc': 'cc_no',
+        'ccno': 'cc_no',
+        'route_no': 'route_no',
+        'route no': 'route_no',
+        'route': 'route_no',
+        'status': 'status'
       };
       
       // Normalize headers using the mapping
@@ -608,7 +603,7 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
       })
 
       setEditingPerson(null)
-      setEditFormData({ name: "", phone: "", customerVPAs: "", email: "", status: "" })
+      setEditFormData({ route_no: "", vpa: "", cc_no: "", phone: "", name: "" })
       fetchBoothPeople() // Refresh the data after update
     } catch (error) {
       console.error('Error updating person:', error)
@@ -710,7 +705,14 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
         </div>
 
         <div className="flex gap-2">
-          <Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+          <Dialog open={isBulkUploadOpen} onOpenChange={(open) => {
+            setIsBulkUploadOpen(open);
+            if (!open) {
+              // Clear data when dialog is closed
+              setUploadFile(null);
+              setCsvPreview([]);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Upload className="h-4 w-4 mr-2" />
@@ -732,7 +734,7 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
                     onChange={handleFileSelect}
                   />
                   <p className="text-sm text-muted-foreground">
-                    Upload a CSV file with columns: Route No, VPA, CC No, Phone, Name
+                    Upload a CSV file with columns: route_no, vpa, cc_no, phone, name
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -774,7 +776,12 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
                 )}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>
+                <Button variant="outline" onClick={() => {
+                  setIsBulkUploadOpen(false);
+                  // Clear data when dialog is closed
+                  setUploadFile(null);
+                  setCsvPreview([]);
+                }}>
                   Cancel
                 </Button>
                 <Button onClick={handleBulkUpload} disabled={!uploadFile || isUploading}>
@@ -962,12 +969,12 @@ ROUTE004,sarah@ybl,CC1234567893,9876543213,Sarah Wilson`
                               />
                             </TableHead>
                             <TableHead className="w-16 bg-background">S.No</TableHead>
-                            <TableHead className="bg-background">Route No</TableHead>
-                            <TableHead className="bg-background">VPA</TableHead>
-                            <TableHead className="bg-background">CC No</TableHead>
-                            <TableHead className="bg-background">Phone</TableHead>
-                            <TableHead className="bg-background">Name</TableHead>
-                            <TableHead className="bg-background">Updated Date</TableHead>
+                            <TableHead className="bg-background">route_no</TableHead>
+                            <TableHead className="bg-background">vpa</TableHead>
+                            <TableHead className="bg-background">cc_no</TableHead>
+                            <TableHead className="bg-background">phone</TableHead>
+                            <TableHead className="bg-background">name</TableHead>
+                            <TableHead className="bg-background">updated_at</TableHead>
                             <TableHead className="bg-background">Actions</TableHead>
                           </TableRow>
                         </TableHeader>

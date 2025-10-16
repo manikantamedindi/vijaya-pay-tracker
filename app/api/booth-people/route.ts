@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Add search functionality
     if (search) {
-      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,customerVPAs.ilike.%${search}%`);
+      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,vpa.ilike.%${search}%`);
     }
 
     let data, error, count;
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         
         // Add search to batch query if provided
         if (search) {
-          batchQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%,customerVPAs.ilike.%${search}%`);
+          batchQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%,vpa.ilike.%${search}%`);
         }
         
         const batchResult = await batchQuery;
@@ -134,15 +134,12 @@ export async function POST(request: NextRequest) {
         'phone': 'phone',
         'Phone': 'phone',
         'PHONE': 'phone',
-        'customerVPAs': 'customerVPAs',
-        'CustomerVPAs': 'customerVPAs',
-        'CUSTOMERVPAS': 'customerVPAs',
-        'customer_vpas': 'customerVPAs',
-        'Customer_VPAs': 'customerVPAs',
-        'vpa': 'customerVPAs',
-        'VPA': 'customerVPAs',
-        'vpas': 'customerVPAs',
-        'VPAs': 'customerVPAs',
+        'vpa': 'vpa',
+        'VPA': 'vpa',
+        'vpas': 'vpa',
+        'VPAs': 'vpa',
+        'upi': 'vpa',
+        'UPI': 'vpa',
         'email': 'email',
         'Email': 'email',
         'EMAIL': 'email',
@@ -170,13 +167,13 @@ export async function POST(request: NextRequest) {
         return header;
       });
       
-      const requiredHeaders = ['name', 'phone', 'customerVPAs'];
+      const requiredHeaders = ['name', 'phone', 'vpa'];
       const missingHeaders = requiredHeaders.filter(h => !normalizedHeaders.includes(h));
       
       if (missingHeaders.length > 0) {
         return Response.json({ 
           error: 'Missing required columns', 
-          details: `Missing: ${missingHeaders.join(', ')}. Expected columns: name, phone, customerVPAs (or variations like vpa, customer_vpas)` 
+          details: `Missing: ${missingHeaders.join(', ')}. Expected columns: name, phone, vpa (or variations like upi)` 
         }, { status: 400 });
       }
 
@@ -189,8 +186,8 @@ export async function POST(request: NextRequest) {
         });
 
         // Validate each record
-        if (!person.name || !person.phone || !person.customerVPAs) {
-          throw new Error(`Row ${index + 2}: Name, phone, and customerVPAs are required`);
+        if (!person.name || !person.phone || !person.vpa) {
+          throw new Error(`Row ${index + 2}: Name, phone, and vpa are required`);
         }
 
         // Validate phone format
@@ -201,16 +198,16 @@ export async function POST(request: NextRequest) {
 
         // Validate VPA format
         const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
-        if (!vpaRegex.test(person.customerVPAs)) {
+        if (!vpaRegex.test(person.vpa)) {
           throw new Error(`Row ${index + 2}: VPA must be in format like username@bank`);
         }
 
         return {
         name: person.name.trim(),
         phone: person.phone.trim(),
-        customerVPAs: person.customerVPAs.trim(),
-        email: person.email?.trim() || null,
-        status: person.status?.trim() || 'Active'
+        vpa: person.vpa.trim(),
+        route_no: person.route_no?.trim() || null,
+        cc_no: person.cc_no?.trim() || null
       };
       });
 
@@ -247,12 +244,12 @@ export async function POST(request: NextRequest) {
     // Handle single person creation (existing functionality)
     const body = await request.json();
     
-    // Validate required fields - accept both 'vpa' and 'customerVPAs'
-    const vpaValue = body.vpa || body.customerVPAs;
+    // Validate required fields - accept 'vpa'
+    const vpaValue = body.vpa;
     if (!body.name || !body.phone || !vpaValue) {
       return Response.json({ 
         error: 'Missing required fields', 
-        details: 'Name, phone, and VPA (or customerVPAs) are required' 
+        details: 'Name, phone, and VPA are required' 
       }, { status: 400 });
     }
 
@@ -278,52 +275,27 @@ export async function POST(request: NextRequest) {
     let insertData = {
       name: body.name.trim(),
       phone: body.phone.trim(),
+      vpa: vpaValue.trim(),
       cc_no: body.cc_no?.trim() || '', // cc_no is required based on the error
       route_no: body.route_no?.trim() || '' // route_no might also be required
     };
 
-    // Try different VPA column names in order of likelihood
-    const possibleVpaColumns = ['vpa', 'vpas', 'customer_vpas', 'customerVPAs'];
-    let insertError = null;
-    let insertResult = null;
-
-    for (const vpaColumn of possibleVpaColumns) {
-      try {
-        let testData = { ...insertData, [vpaColumn]: vpaValue.trim() };
-        
-        let { data, error } = await supabase
-          .from('booth_people')
-          .insert([testData])
-          .select()
-          .single();
-        
-        if (!error) {
-          insertResult = { data, error: null };
-          break;
-        } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          insertError = error;
-          continue;
-        } else {
-          insertError = error;
-          break;
-        }
-      } catch (err) {
-        insertError = err;
-        continue;
-      }
-    }
-
-    const { data, error } = insertResult || { data: null, error: insertError };
-
+    // Use the correct VPA column name
+    const { data, error } = await supabase
+      .from('booth_people')
+      .insert([{...insertData, vpa: vpaValue.trim()}])
+      .select()
+      .single();
+    
     if (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') { // Unique constraint violation
+      if (error.code === '23505') { // Unique constraint violation
         return Response.json({ 
           error: 'Duplicate entry', 
           details: 'Phone number or VPA already exists' 
         }, { status: 409 });
       }
       return Response.json({ 
-        error: typeof error === 'object' && error !== null && 'message' in error ? error.message : 'Database error',
+        error: error.message,
         details: error
       }, { status: 500 });
     }
@@ -386,9 +358,7 @@ export async function PUT(request: NextRequest) {
         const updateData: any = { id: person.id };
         if (person.name !== undefined) updateData.name = person.name.trim();
         if (person.phone !== undefined) updateData.phone = person.phone.trim();
-        if (person.vpa !== undefined) updateData.customerVPAs = person.vpa.trim();
-        if (person.email !== undefined) updateData.email = person.email?.trim() || null;
-        if (person.status !== undefined) updateData.status = person.status?.trim() || 'Active';
+        if (person.vpa !== undefined) updateData.vpa = person.vpa.trim();
 
         return updateData;
       });
@@ -450,9 +420,7 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {};
     if (body.name !== undefined) updateData.name = body.name.trim();
     if (body.phone !== undefined) updateData.phone = body.phone.trim();
-    if (body.vpa !== undefined) updateData.customerVPAs = body.vpa.trim();
-    if (body.email !== undefined) updateData.email = body.email?.trim() || null;
-    if (body.status !== undefined) updateData.status = body.status?.trim() || null;
+    if (body.vpa !== undefined) updateData.vpa = body.vpa.trim();
 
     // Check if any fields are being updated
     if (Object.keys(updateData).length === 0) {

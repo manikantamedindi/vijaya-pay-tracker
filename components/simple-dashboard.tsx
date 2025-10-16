@@ -23,6 +23,8 @@ interface Transaction {
   customerVPA: string
   isMatched?: boolean
   matchedPersonId?: string
+  route_no?: string
+  cc_no?: string
 }
 
 export function SimpleDashboard() {
@@ -76,7 +78,10 @@ export function SimpleDashboard() {
         id: person.id,
         name: person.name,
         phone: person.phone,
-        customerVPAs: person.customerVPAs,
+        vpa: person.vpa, // Use 'vpa' which is the actual column name
+        customerVPAs: person.vpa, // Keep customerVPAs for compatibility
+        route_no: person.route_no,
+        cc_no: person.cc_no,
         email: person.email,
         status: person.status,
         createdAt: person.inserted_at,
@@ -394,8 +399,10 @@ export function SimpleDashboard() {
       // Create a Map for faster lookup of booth people by VPA
       const vpaToPersonMap = new Map<string, any>()
       boothPeople.forEach(person => {
-        if (person.customerVPAs) {
-          vpaToPersonMap.set(person.customerVPAs, person)
+        // Use both customerVPAs and vpa fields to support both field names
+        const vpa = person.customerVPAs || person.vpa
+        if (vpa) {
+          vpaToPersonMap.set(vpa, person)
         }
       })
 
@@ -418,6 +425,8 @@ export function SimpleDashboard() {
             ...transaction,
             isMatched: !!matchedPerson,
             matchedPersonId: matchedPerson?.id || undefined,
+            route_no: matchedPerson?.route_no || undefined,
+            cc_no: matchedPerson?.cc_no || undefined,
           }
         })
 
@@ -657,6 +666,8 @@ export function SimpleDashboard() {
                       <TableHead className="w-24">Amount</TableHead>
                       <TableHead className="w-32">RRN</TableHead>
                       <TableHead className="min-w-48">Customer VPA</TableHead>
+                      <TableHead className="w-32">Route No</TableHead>
+                      <TableHead className="w-32">CC No</TableHead>
                       <TableHead className="w-24">Match Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -667,6 +678,8 @@ export function SimpleDashboard() {
                         <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 w-12 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 w-24 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 w-32 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 w-32 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 w-32 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse"></div></TableCell>
                       </TableRow>
@@ -712,6 +725,8 @@ export function SimpleDashboard() {
                       <TableHead className="w-24">Amount</TableHead>
                       <TableHead className="w-32">RRN</TableHead>
                       <TableHead className="min-w-48">Customer VPA</TableHead>
+                      <TableHead className="w-32">Route No</TableHead>
+                      <TableHead className="w-32">CC No</TableHead>
                       <TableHead className="w-24">Match Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -723,6 +738,8 @@ export function SimpleDashboard() {
                         <TableCell className="font-medium">₹{transaction.transactionAmount.toLocaleString()}</TableCell>
                         <TableCell className="font-mono text-xs">{transaction.rrn}</TableCell>
                         <TableCell className="font-mono text-sm">{transaction.customerVPA}</TableCell>
+                        <TableCell className="font-mono text-sm">{transaction.route_no || '-'}</TableCell>
+                        <TableCell className="font-mono text-sm">{transaction.cc_no || '-'}</TableCell>
                         <TableCell>
                           <Badge variant={transaction.isMatched ? "default" : "secondary"} className="text-xs">
                             {transaction.isMatched ? "Matched" : "Unmatched"}
@@ -811,6 +828,8 @@ export function SimpleDashboard() {
                     { key: 'transactionDate', header: 'Date', width: 'w-24' },
                     { key: 'transactionAmount', header: 'Amount', width: 'w-24', render: (value) => `₹${Number(value).toLocaleString()}` },
                     { key: 'customerVPA', header: 'Customer VPA', width: 'min-w-48' },
+                    { key: 'route_no', header: 'Route No', width: 'w-32' },
+                    { key: 'cc_no', header: 'CC No', width: 'w-32' },
                     { key: 'rrn', header: 'RRN', width: 'w-32' }
                   ]}
                   rowHeight={48}
@@ -826,6 +845,8 @@ export function SimpleDashboard() {
                       <TableHead className="w-24">Date</TableHead>
                       <TableHead className="w-24">Amount</TableHead>
                       <TableHead className="min-w-48">Customer VPA</TableHead>
+                      <TableHead className="w-32">Route No</TableHead>
+                      <TableHead className="w-32">CC No</TableHead>
                       <TableHead className="w-32">RRN</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -835,6 +856,8 @@ export function SimpleDashboard() {
                         <TableCell>{transaction.transactionDate}</TableCell>
                         <TableCell className="font-medium">₹{transaction.transactionAmount.toLocaleString()}</TableCell>
                         <TableCell className="font-mono text-sm">{transaction.customerVPA}</TableCell>
+                        <TableCell className="font-mono text-sm">{transaction.route_no || '-'}</TableCell>
+                        <TableCell className="font-mono text-sm">{transaction.cc_no || '-'}</TableCell>
                         <TableCell className="font-mono text-xs">{transaction.rrn}</TableCell>
                       </TableRow>
                     ))}
