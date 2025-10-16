@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { Eye, EyeOff, Building2 } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 
 interface LoginFormProps {
   onLogin: (user: { username: string; role: string }) => void
@@ -59,16 +59,13 @@ export function LoginForm({ onLogin }: LoginFormProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary rounded-full">
-              <Building2 className="h-8 w-8 text-primary-foreground" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl">Milk Factory Login</CardTitle>
-          <CardDescription>Sign in to access the payment reconciliation system</CardDescription>
+          <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
+          <CardDescription>
+            Enter your credentials to access your account
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -109,15 +106,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-sm font-medium mb-2">Demo Credentials:</p>
-            <div className="text-xs space-y-1 text-muted-foreground">
-              <div>Admin: admin / admin123</div>
-              <div>Manager: manager / manager123</div>
-              <div>Staff: staff / staff123</div>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

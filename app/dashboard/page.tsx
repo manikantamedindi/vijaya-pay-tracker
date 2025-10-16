@@ -1,17 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { SimpleDashboard } from "@/components/simple-dashboard";
+import { useAuth } from "@/components/auth/auth-provider";
 
 export default function DashboardPage() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
+    }
     setIsLoaded(true);
-  }, []);
+  }, [isAuthenticated, router]);
 
-  if (!isLoaded) {
+  if (!isAuthenticated || !isLoaded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

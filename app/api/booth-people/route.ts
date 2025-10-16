@@ -247,11 +247,12 @@ export async function POST(request: NextRequest) {
     // Handle single person creation (existing functionality)
     const body = await request.json();
     
-    // Validate required fields
-    if (!body.name || !body.phone || !body.vpa) {
+    // Validate required fields - accept both 'vpa' and 'customerVPAs'
+    const vpaValue = body.vpa || body.customerVPAs;
+    if (!body.name || !body.phone || !vpaValue) {
       return Response.json({ 
         error: 'Missing required fields', 
-        details: 'Name, phone, and VPA are required' 
+        details: 'Name, phone, and VPA (or customerVPAs) are required' 
       }, { status: 400 });
     }
 
@@ -266,34 +267,65 @@ export async function POST(request: NextRequest) {
 
     // Validate VPA format (basic validation)
     const vpaRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/;
-    if (!vpaRegex.test(body.vpa)) {
+    if (!vpaRegex.test(vpaValue)) {
       return Response.json({ 
         error: 'Invalid VPA format', 
         details: 'VPA must be in format like username@bank' 
       }, { status: 400 });
     }
     
-    // Insert a new booth person
-    const { data, error } = await supabase
-      .from('booth_people')
-      .insert([{
-        name: body.name.trim(),
-        phone: body.phone.trim(),
-        customerVPAs: body.vpa.trim(),
-        email: body.email?.trim() || null,
-        status: body.status?.trim() || 'Active'
-      }])
-      .select()
-      .single();
+    // Try inserting with all required fields based on the error
+    let insertData = {
+      name: body.name.trim(),
+      phone: body.phone.trim(),
+      cc_no: body.cc_no?.trim() || '', // cc_no is required based on the error
+      route_no: body.route_no?.trim() || '' // route_no might also be required
+    };
+
+    // Try different VPA column names in order of likelihood
+    const possibleVpaColumns = ['vpa', 'vpas', 'customer_vpas', 'customerVPAs'];
+    let insertError = null;
+    let insertResult = null;
+
+    for (const vpaColumn of possibleVpaColumns) {
+      try {
+        let testData = { ...insertData, [vpaColumn]: vpaValue.trim() };
+        
+        let { data, error } = await supabase
+          .from('booth_people')
+          .insert([testData])
+          .select()
+          .single();
+        
+        if (!error) {
+          insertResult = { data, error: null };
+          break;
+        } else if (error.message.includes("column") && error.message.includes("does not exist")) {
+          insertError = error;
+          continue;
+        } else {
+          insertError = error;
+          break;
+        }
+      } catch (err) {
+        insertError = err;
+        continue;
+      }
+    }
+
+    const { data, error } = insertResult || { data: null, error: insertError };
 
     if (error) {
-      if (error.code === '23505') { // Unique constraint violation
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') { // Unique constraint violation
         return Response.json({ 
           error: 'Duplicate entry', 
           details: 'Phone number or VPA already exists' 
         }, { status: 409 });
       }
-      return Response.json({ error: error.message }, { status: 500 });
+      return Response.json({ 
+        error: typeof error === 'object' && error !== null && 'message' in error ? error.message : 'Database error',
+        details: error
+      }, { status: 500 });
     }
 
     return Response.json({ data: data, message: 'Booth person created successfully' }, { status: 201 });

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <!-- Red logo background -->
+  <rect x="20" y="40" width="180" height="80" rx="15" fill="#E53E3E" stroke="#C53030" stroke-width="2"/>
+  
+  <!-- Crown icon -->
+  <path d="M70 50 L75 45 L80 50 L85 45 L90 50 L95 45 L100 50 L100 55 L70 55 Z" fill="white"/>
+  <rect x="72" y="55" width="26" height="4" fill="white"/>
+  
+  <!-- Telugu text "విజయ" stylized -->
+  <text x="85" y="85" font-family="serif" font-size="24" font-weight="bold" fill="white" text-anchor="middle">విజయ</text>
+  
+  <!-- 60 Years Anniversary Badge -->
+  <circle cx="320" cy="100" r="80" fill="#4A9B3A" stroke="#2F7D32" stroke-width="3"/>
+  <circle cx="320" cy="100" r="65" fill="none" stroke="#FFD700" stroke-width="2" stroke-dasharray="5,3"/>
+  
+  <!-- "60" text -->
+  <text x="320" y="85" font-family="serif" font-size="36" font-weight="bold" fill="white" text-anchor="middle">60</text>
+  
+  <!-- "Years" text -->
+  <text x="320" y="105" font-family="serif" font-size="14" font-style="italic" fill="white" text-anchor="middle">Years</text>
+  
+  <!-- "Since 1965" banner -->
+  <path d="M260 130 L380 130 L375 145 L265 145 Z" fill="#B8860B"/>
+  <text x="320" y="140" font-family="serif" font-size="10" font-weight="bold" fill="white" text-anchor="middle">Since 1965</text>
+  
+  <!-- Decorative elements -->
+  <circle cx="280" cy="70" r="2" fill="#FFD700"/>
+  <circle cx="360" cy="70" r="2" fill="#FFD700"/>
+  <circle cx="280" cy="130" r="2" fill="#FFD700"/>
+  <circle cx="360" cy="130" r="2" fill="#FFD700"/>
+</svg>
