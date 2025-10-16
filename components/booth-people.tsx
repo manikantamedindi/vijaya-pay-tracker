@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select"
 import { Plus, Edit, Trash2, UserPlus, Upload, Download, Search, X, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useData } from "@/components/providers/data-provider"
 
 interface BoothPerson {
   id: string
@@ -50,6 +51,7 @@ interface ApiResponse {
 }
 
 export function BoothPeople() {
+  const { boothPeople: globalBoothPeople, isLoading: globalIsLoading, refreshData } = useData()
   const [boothPeople, setBoothPeople] = useState<BoothPerson[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -277,74 +279,30 @@ export function BoothPeople() {
     }
   }
 
-  // Fetch booth people from API - always fetch all records
+  // Fetch booth people from API - now uses global data provider
   const fetchBoothPeople = async () => {
-    try {
-      setIsLoading(true)
-      
-      // Check session storage first
-      const sessionData = getSessionData()
-      if (sessionData) {
-        // Transform session data to ensure it has the new format
-        const transformedSessionData = sessionData.map((person: any) => ({
-          id: person.id,
-          route_no: person.route_no || null,
-          vpa: person.vpa || person.customerVPAs || '',
-          cc_no: person.cc_no || '',
-          phone: person.phone || '',
-          name: person.name || '',
-          updated_at: person.updated_at || person.inserted_at || new Date().toISOString()
-        }))
-        setBoothPeople(transformedSessionData)
-        return
-      }
-      
-      const response = await fetch(`/api/booth-people?limit=all`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch booth people')
-      }
-      
-      const result: ApiResponse = await response.json()
-      
-      // Transform old data format to new format
-      const transformedData = result.data.map((person: any) => ({
-        id: person.id,
-        route_no: person.route_no || null,
-        vpa: person.vpa || person.customerVPAs || '',
-        cc_no: person.cc_no || '',
-        phone: person.phone || '',
-        name: person.name || '',
-        updated_at: person.updated_at || person.inserted_at || new Date().toISOString()
-      }))
-      
-      setBoothPeople(transformedData)
-      
-      // Save to session storage
-      saveSessionData(transformedData)
-    } catch (error) {
-      console.error('Error fetching booth people:', error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch booth people. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
+    await refreshData()
   }
 
   // Clear session storage and refresh data
   const clearSessionAndRefresh = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY)
-    fetchBoothPeople()
+    refreshData()
   }
 
   useEffect(() => {
     // Clear any stale session data on component mount
     sessionStorage.removeItem(SESSION_STORAGE_KEY)
-    fetchBoothPeople()
+    // Data is already loaded by global provider, just sync
+    setBoothPeople(globalBoothPeople)
+    setIsLoading(globalIsLoading)
   }, [])
+
+  // Sync with global data
+  useEffect(() => {
+    setBoothPeople(globalBoothPeople)
+    setIsLoading(globalIsLoading)
+  }, [globalBoothPeople, globalIsLoading])
 
   // Apply filtering when data or search query changes
   useEffect(() => {
